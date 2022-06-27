@@ -1,8 +1,17 @@
 import logo from './logo.svg';
 import './App.css';
 import Complex from './Complex'
+import { create, all } from 'mathjs'
 
 function App() {
+
+  const config = { }
+  const math = create(all, config)
+
+  if(!math.parser.eval){
+
+    math.parser.eval = math.parser.evaluate
+  }
 
 
   function addObjectPropertiesToGlobal(array_obj){
@@ -28,24 +37,14 @@ function App() {
     }
   }
 
-  let graph = new Complex.ComplexGraph();
+  addObjectPropertiesToGlobal([Complex]);
+
+  addObjectToGlobal(math, 'math');
+
+  let graph = new Complex.ComplexGraph()
 
   return (
     <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
     </div>
   );
 }

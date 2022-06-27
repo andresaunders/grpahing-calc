@@ -12,6 +12,8 @@ let z_max = 10;
 
 let use_z_max = false;
 
+let eval_function = 'evaluate'
+
 class Angle {
 
     constructor(theta, type = 'rad'){
@@ -342,9 +344,9 @@ class Z {
 
         let parser = window.math.parser();
 
-        parser.eval(`f(z) = ${f_expression}`);
+        parser[eval_function](`f(z) = ${f_expression}`);
 
-        let eval_expression = parser.eval(`f(${z.a} + ${z.b}i)`);
+        let eval_expression = parser[eval_function](`f(${z.a} + ${z.b}i)`);
 
         return new Z(eval_expression.re, eval_expression.im);
     }
@@ -353,7 +355,7 @@ class Z {
 
         let parser = window.math.parser();
 
-        parser.eval(parametric_expression);
+        parser[eval_function](parametric_expression);
 
         let independent_values = '';
 
@@ -369,7 +371,7 @@ class Z {
             }
         }
 
-        let eval_expression = parser.eval(`${dependent_var_name}(${independent_values})`);
+        let eval_expression = parser[eval_function](`${dependent_var_name}(${independent_values})`);
 
         return eval_expression
     }
@@ -454,7 +456,7 @@ function drawComplexFunctionAsCombination(svg, expression, options = {t: 0, draw
 
     let compiled_expression = math.compile(expanded_string);
 
-    compiled_expression.eval({a: a, b: b})
+    compiled_expression[eval_function]({a: a, b: b})
 
     let svg_view_box = getSVGViewBox(svg);
 
@@ -464,7 +466,7 @@ function drawComplexFunctionAsCombination(svg, expression, options = {t: 0, draw
 
     let x_values = math.range(x_min, x_max, dx);
 
-    let y_values = x_values.map(x_value => expr.eval({a: x_value, t: options.t}));
+    let y_values = x_values.map(x_value => expr[eval_function]({a: x_value, t: options.t}));
 
     //console.log('x: ', x_values._data, ', y: ', y_values._data)
 
@@ -831,17 +833,17 @@ class ComplexFunctionParameters {
 
         let parser = window.math.parser();
         
-        parser.eval(`a(t) = ${this.a_expression}`);
+        parser[eval_function](`a(t) = ${this.a_expression}`);
 
-        parser.eval(`b(t) = ${this.b_expression}`);
+        parser[eval_function](`b(t) = ${this.b_expression}`);
         
         while(t < Number(this.t_max)){
 
             t += Number(this.t_delta);
 
-            let a = parser.eval(`a(${t})`);
+            let a = parser[eval_function](`a(${t})`);
 
-            let b = parser.eval(`b(${t})`);
+            let b = parser[eval_function](`b(${t})`);
 
             let z = new Z(a,b);
 
@@ -1606,11 +1608,11 @@ class ComplexGraph {
 
         let parser = window.math.parser();
 
-       // parser.evaluate(`z = ${name_value.z.a} + ${name_value.z.b}`);
+       // parser[eval_function]uate(`z = ${name_value.z.a} + ${name_value.z.b}`);
 
-        parser.eval(`f(z) = ${this.function_expressions[id]}`);
+        parser[eval_function](`f(z) = ${this.function_expressions[id]}`);
 
-        let eval_expression = parser.eval(`f(${z.a} + ${z.b}i)`);
+        let eval_expression = parser[eval_function](`f(${z.a} + ${z.b}i)`);
 
         console.log('eval_expression: ', eval_expression, ', function_expression: ', this.function_expressions[id]);
 
