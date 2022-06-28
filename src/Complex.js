@@ -1266,7 +1266,7 @@ class ComplexGraph {
 
         add_new_function_img.id = this.randomId('add-function-button-');
 
-        add_new_function_img.src = '../plus_button.svg'
+        add_new_function_img.src = './plus_button.svg'
 
         add_new_function_img.style.height = '20px';
 
