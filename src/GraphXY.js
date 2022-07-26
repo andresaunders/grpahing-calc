@@ -6,12 +6,13 @@ function createXYPlane(x_min = 0, x_max = 200, y_min = 0, y_max = 400, options){
     options = new defaultOptions(options, 
         {
             drawAxes: true, 
+            axis_numbers: true,
             drawGridLines: true, 
             positive_y_axis_up: true, 
             line_width: .2,
             add_svg_listeners: true,
             append_to_dom: true,
-            height: '500px',
+            height: '100%',//500px
             width: '100%',
             marginBottom: '10px'
         });
@@ -26,17 +27,17 @@ function createXYPlane(x_min = 0, x_max = 200, y_min = 0, y_max = 400, options){
 
     let svg = document.createElementNS(svg_ns, 'svg');
 
-    svg.style.width = '100%';
+    svg.style.width = options.width;
 
-    svg.style.height = '100%';
+    svg.style.height = options.height;
 
     let view_box = {x_min: x_min, y_min: y_min, width: x_max - x_min, height: y_max - y_min};
 
     if(options.drawAxes){
 
-        drawLine(svg, 0, y_min, 0, y_max, {width: options.line_width});//y - axes
+        drawLine(svg, 0, y_min - 5, 0, y_max + 5, {width: options.line_width});//y - axes
 
-        drawLine(svg, x_min, 0, x_max, 0, {width: options.line_width}); //x -axes
+        drawLine(svg, x_min - 5, 0, x_max + 5, 0, {width: options.line_width}); //x -axes
     }
 
     if(options.positive_y_axis_up){
@@ -74,10 +75,15 @@ function createXYPlane(x_min = 0, x_max = 200, y_min = 0, y_max = 400, options){
             drawLine(svg, x_min, -1*y, x_max, -1*y, {width: grid_line_width, color: grid_line_color});
         }
     }
+
+    if(options.axis_numbers){
+
+
+    }
   
     svg.setAttribute('viewBox', `${view_box.x_min} ${view_box.y_min} ${view_box.width} ${view_box.height}`);
 
-    svg_container.appendChild(svg);
+    //svg_container.appendChild(svg);
 
     if(options.append_to_dom) {
         
@@ -145,7 +151,7 @@ function drawVector(){
 
 function drawLine(svg, x1,y1, x2, y2, options){
 
-    options = new defaultOptions(options, {width: 1, color: 'black', arrow: null, arrow_id: null})
+    options = new defaultOptions(options, {width: 1, color: 'black', arrow: null, arrow_id: null, style: {'classList': ['graph-grid-line']}})
 
     console.log(`x1: ${typeof x1}, x2: ${typeof x2}, y1: ${typeof y1}, y2: ${typeof y2}`)
 
@@ -160,8 +166,31 @@ function drawLine(svg, x1,y1, x2, y2, options){
 
     let line = document.createElementNS(svg_ns, 'path');
 
-    line.setAttribute('d', `M ${x1} ${-1*y1} L ${(x2+x1)/2} ${(-1*y2 + -1*y1)/2} L ${x2} ${-1*y2}`);
+    let line_path = ''
 
+    try {
+
+        line_path = `M ${x1} ${-1*y1} L ${(x2+x1)/2} ${(-1*y2 + -1*y1)/2} L ${x2} ${-1*y2}`
+
+        console.log(`line_path: ${line_path}`);
+    }
+    catch(error){
+
+        console.log('line_path_error: ', error);
+    }
+
+    /*
+        line_path: M -2.40972569747149e+236 3.5 L -2.40972569747149e+236 0 L -2.40972569747149e+236 -3.5
+    */
+   try{
+
+    line.setAttribute('d', line_path);
+   }
+   catch(error){
+
+    console.log(`line.setAttribute('d', ${line_path}) error`)
+   }
+   
     line.setAttribute('stroke', options.color);
 
     line.setAttribute('stroke-width', options.width);
@@ -180,6 +209,22 @@ function drawLine(svg, x1,y1, x2, y2, options){
 
             line.setAttribute('marker-mid', `url(#${options.arrow_id})`)
         }
+    }
+
+    for(let s in options.style){
+
+        if(s != 'classList'){
+
+            line.style[s] = options.style[s];
+        }
+        else{
+
+            for(let c of options.style.classList){
+
+                line.classList.add(c);
+            }
+        }
+        
     }
 
     svg.appendChild(line);

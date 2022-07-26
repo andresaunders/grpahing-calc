@@ -5,6 +5,7 @@ import {svg_ns, addSVGListeners, transformPointToSVG} from './Svg.js';
 import {evalComplexExpression} from './Expression'
 import {createXYPlane, drawPoint, drawLine, drawFunction} from './GraphXY.js';
 import {randomRange} from './Random'
+import { i } from 'mathjs';
 
 let z_index = 0;
 
@@ -492,10 +493,854 @@ function drawComplexFunctionAsCombination(svg, expression, options = {t: 0, draw
     //convert to x and y
 }*/
 
+class ComplexPlane {
+
+    constructor(options){ 
+
+        /*
+drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBottom: '0'});
+        */
+
+    let width_height_ratio = 2;
+    this.graph_height = 2.5
+    this.graph_width = width_height_ratio * this.graph_height;
+
+       //width 285
+       // height 188
+       this.container = null;
+
+       if(options) this.container = options.container;
+
+       if(this.container){
+        let box = this.container.getBoundingClientRect();
+        let container_width = box.width;
+        let container_height = box.height;
+        let width_height_ratio = container_width/container_height
+        this.graph_height = 10
+        this.graph_width = width_height_ratio * this.graph_height;
+       }
+
+
+        options = new defaultOptions(options, 
+            {
+                a_min: -this.graph_width/2, 
+                a_max: this.graph_width/2 ,
+                b_min: -this.graph_height/2, 
+                b_max: this.graph_height/2, 
+                listeners: [], 
+                append_to_dom: true,
+                drawGridLines: false,
+                drawAxes: false,
+                height: '100%', 
+                width: '100%', 
+                marginBottom: '0px',
+                zoom_functions: [this.zoomFunction.bind(this)],
+                translate_functions: [this.translateFunction.bind(this)]
+            }
+        );
+
+        this.options = options;
+
+        this.x_unit = 1;
+
+        this.x_unit_divisions = 5;
+
+        this.y_unit = 1;
+
+        this.y_unit_divisions = 5;
+
+        this.dx_unit = this.x_unit/this.x_unit_divisions
+
+        this.dy_unit = this.y_unit/this.y_unit_divisions;
+
+        this.dx_size = null;
+
+        this.dy_size = null;
+
+        this.graph = null;
+
+        this.zoom = 1;
+
+        this.graphed_points_default_color = options.point_color;
+
+        this.graphed_points = [];//[];
+
+        this.graphed_points_start_index = 0;
+    
+        this.drawGraph(this.options);
+    }
+
+    lastPointSet(options){
+
+        if(this.graphed_points.length == 0){
+
+            return null;
+        }
+
+        return this.graphed_points[this.graphed_points.length - 1];
+    }
+
+    updateBoundary(){
+
+        let box = this.container.getBoundingClientRect();
+
+        console.log('updateBoundary box: ', box);
+
+        let container_width = box.width/2
+
+        let container_height = box.height;
+
+        let width_height_ratio = container_width/container_height
+
+        this.graph_height = this.graph_height
+
+        this.graph_width = width_height_ratio * this.graph_height;
+
+        console.log(`this.graph_width: ${this.graph_width}, this.graph_height: ${this.graph_height}`)
+
+        this.options.a_min =  -this.graph_width/2;
+        this.options.a_max = this.graph_width/2;
+        this.options.b_min = -this.graph_height/2;
+        this.options.b_max = this.graph_height/2;
+    }
+
+    zoomFunction(){
+
+        let view_box = this.graph.dataset.view_box//plane.dataset.view_box;
+
+        this.zoom = Number(this.graph.dataset.zoom)//Number(plane.dataset.zoom);
+
+        this.transformComplexPointsOnZoom();//transformComplexPointsOnZoom(plane);
+
+        //transformGridLinesOnZoom(plane);
+
+        this.clearGridLines();
+
+        transformScaledViewBox(this.graph);
+
+        this.clearAxisNumbers();
+
+        this.clearAxes();
+
+        this.adjustAxisScale();
+
+        this.drawGridLines();
+
+        this.drawAxisNumbers();
+
+        this.drawAxes();
+        
+        //min x min y min width height
+    }
+
+    drawPoints(options){
+
+        options = new defaultOptions(options, {vector_width: .02, color: this.graphed_points_default_color})
+
+        console.log(`drawPoints this.graphed_points: `, this.graphed_points);
+
+        this.graphed_points.map((z_set) => {
+
+            let prev_z = null;
+    
+            z_set.map((z, z_index) => {
+    
+                if(z_index > 0){
+    
+                    drawZ(z, this.graph, {vector_width: options.vector_width, color: options.color, scale: Number(this.zoom), type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+                }
+    
+                prev_z = z;
+            })
+        })
+    }
+
+   transformComplexPointsOnZoom(options){
+
+    this.clearPoints();//this.clearPlane();
+
+    let zoom_factor = this.zoom//svg.dataset.zoom;
+
+    options = new defaultOptions(options, {
+
+      class: 'graphed-z-point',
+      initial_stroke_width: 0.02,
+      color: this.graphed_points_default_color
+    })
+
+    let new_stroke_width = Number(options.initial_stroke_width);//Number(options.initial_stroke_width)/Number(zoom_factor);
+
+    console.log('new_stroke_width: ', new_stroke_width);
+
+    this.drawPoints({vector_width: new_stroke_width, color: this.graphed_points_default_color});
+
+    //let prev_z;
+
+    /*this.graphed_points.map((z, z_index) => {
+
+        if(z_index > 0){
+
+            drawZ(z, this.graph, {vector_width: new_stroke_width, color: options.color, scale: zoom_factor, type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+        }
+
+        prev_z = z;
+
+    })*/
+
+  
+
+   /* let graphed_points = Array.from(svg.querySelectorAll(`.${options.class}`));
+
+    graphed_points.map(point => {
+
+        point.setAttribute('transform', `scale(${zoom_factor} ${zoom_factor})`);
+
+        point.setAttribute('stroke-width', new_stroke_width);
+    })*/
+  }
+
+    translateFunction(plane){
+
+        //transformComplexPointsOnZoom(plane);
+
+        //transformGridLinesOnZoom(plane);
+
+        console.log('translateFunction this: ', this != null)
+
+        if(!this.graph){
+
+            return;
+        }
+
+        this.clearGridLines();
+
+        //transformScaledViewBox(plane);
+
+        this.clearAxisNumbers();
+
+        this.clearAxes();
+
+        //this.adjustAxisScale();
+
+        this.drawGridLines();
+
+        this.drawAxisNumbers();
+
+        this.drawAxes();
+    }
+
+    adjustAxisScale(){
+
+       // 1 2 5
+        //increasing
+       // 1 * 10 ^p: zoom < 2 * 10^p
+       // 2: zoom < 5
+       // 5: zoom < 10
+       // 10: zoom  20
+
+       // 4.8 4 * 10 ^ 1
+
+      let scientific_zoom = expo(1/this.zoom, 4);
+
+      let numeric_part = getNumericPartOfScientificNotationString(scientific_zoom);
+
+      let exponent_part = getExponentPartOfScientificNotationString(scientific_zoom);
+
+      console.log(`scientific_zoom: ${scientific_zoom}, numeric_part: ${numeric_part}, exponent_part: ${exponent_part}`)
+
+      let unit;
+
+      if(numeric_part < 2){//1
+
+        unit = 1;
+
+        this.x_unit_divisions = 5;
+
+        this.y_unit_divisions = 5;
+
+      }
+      else if(numeric_part < 5){//2
+
+        unit = 2;
+
+        this.x_unit_divisions = 4;
+
+        this.y_unit_divisions = 4;
+      }
+      else if(numeric_part < 10){//5
+
+        unit = 5;
+
+        this.x_unit_divisions = 5;
+
+        this.y_unit_divisions = 5;
+      }
+
+      this.x_unit = unit * Math.pow(10, exponent_part);
+
+      this.y_unit = unit * Math.pow(10, exponent_part);
+
+      this.dx_unit = this.x_unit/this.x_unit_divisions
+
+      this.dy_unit = this.y_unit/this.y_unit_divisions;
+
+      console.log(`
+      adjustAxisScale unit: ${unit}, 
+      x_unit: ${this.x_unit}, 
+      y_unit: ${this.y_unit},
+      scientific_zoom: ${scientific_zoom}, 
+      numeric_part: ${numeric_part}, 
+      exponent_part: ${exponent_part}`
+      );
+    }
+
+    clearGraphedPoints(){//remove this.graphed_points
+
+        this.clearPoints();
+
+        this.graphed_points = [];
+    }
+
+    clearPoints(){
+
+        console.log('clearPlane in ComplexGraph')
+
+        //redraw input_plane
+
+        let graphed_input_points = Array.from(this.graph.querySelectorAll('.graphed-z-point'));
+
+        for(let point of graphed_input_points){
+
+            console.log('point: ', point);
+
+            this.graph.removeChild(point);
+        }
+    }
+
+    clearAxes(){
+
+        let axes = Array.from(this.graph.querySelectorAll(`.graph-axes`));
+
+        axes.map(a => {
+
+            this.graph.removeChild(a);
+        })
+    }
+
+    clearGridLines(){
+
+        let grid_lines = Array.from(this.graph.querySelectorAll(`.graph-grid-line`));
+
+        grid_lines.map(line =>{
+
+            this.graph.removeChild(line);
+        })
+    }
+
+    clearAxisNumbers(){
+
+        let number_labels = Array.from(this.graph.querySelectorAll('.graph-label'));
+
+        number_labels.map(label => {
+
+            this.graph.removeChild(label);
+        })
+    }
+
+    clearPlane(){
+
+    }
+
+    clearAll(){
+
+        while(this.graph.firstChild){
+
+            this.graph.removeChild(this.graph.firstChild);
+        }
+    }
+
+    drawGraph(options){
+
+        let prev_graph;
+
+        if(this.graph){
+
+            prev_graph = this.graph;
+        }
+
+        this.graph = drawComplexPlane(options);
+
+        for(let s in options.style){
+
+            this.graph.style[s] = options.style[s]
+        }
+
+        this.drawAxisNumbers();
+
+        this.drawGridLines();
+
+        this.drawAxes();
+
+        console.log('this.graph: ', this.graph)
+
+        if(this.container && prev_graph){
+
+            this.container.replaceChild(this.graph, prev_graph)
+        }
+    }
+
+    drawAxes(){
+
+        let min_x_unit = this.getMinXUnit()*this.zoom;
+
+        let max_x_unit = this.getMaxXUnit()*this.zoom;
+
+        let min_x_in_view = this.getMinXInView();
+
+        let max_x_in_view = this.getMaxXInView();
+
+        let x_delta = this.x_unit/this.x_unit_divisions;
+
+        let min_y_unit = this.getMinYUnit();
+
+        let max_y_unit = this.getMaxYUnit();
+
+        let min_y_in_view = this.getMinYInView();
+
+        let max_y_in_view = this.getMaxYInView();
+
+        let y_delta = this.y_unit/this.y_unit_divisions;
+
+        let line_width = .1
+
+        drawLine(this.graph, 0, min_y_in_view - 5, 0, max_y_in_view + 5, {width: line_width, style: {'classList': ['graph-axes']}});//y - axes
+
+        drawLine(this.graph, min_x_in_view - 5, 0, max_x_in_view + 5, 0, {width: line_width, style: {'classList': ['graph-axes']}}); 
+    }
+    
+    drawGridLines(options){
+
+        options = new defaultOptions(options, 
+            {
+                grid_line_width: .02,
+                unit_color: 'black',
+                non_unit_color: 'gray'
+            }
+        )
+
+        let min_x_unit = this.getMinXUnit();
+
+        let max_x_unit = this.getMaxXUnit();
+
+        let min_x_in_view = this.getMinXInView();
+
+        let max_x_in_view = this.getMaxXInView();
+
+        let x_delta = (this.x_unit * this.zoom)/this.x_unit_divisions;
+
+        let x_range = (max_x_unit - min_x_unit)
+
+        let min_y_unit = this.getMinYUnit();
+
+        let max_y_unit = this.getMaxYUnit();
+
+        let min_y_in_view = this.getMinYInView();
+
+        let max_y_in_view = this.getMaxYInView();
+
+        let y_delta = (this.y_unit * this.zoom)/this.y_unit_divisions;
+
+        let y_range = max_y_unit - min_y_unit;
+
+        let x_offset = 1*this.x_unit*this.zoom;
+
+        let y_offset = 1*this.y_unit*this.zoom;
+
+        let min_x = min_x_unit - x_offset;
+
+        let max_x = max_x_unit + x_offset       
+        
+        let x_boundary = Math.max(Math.abs(min_x_in_view), max_x_in_view) + 1;
+
+        let y_boundary = Math.max(Math.abs(min_y_in_view), max_y_in_view) + 1;
+
+        console.log(`
+            drawGridLines
+            view_box: ${getObjectString(this.getViewBox())},
+            min_x_unit: ${min_x_unit}, 
+            max_x_unit: ${max_x_unit},
+            min_x_in_view: ${min_x_in_view},
+            max_x_in_in_view: ${max_x_in_view},
+            x_delta: ${x_delta},
+            x_offset: ${x_offset},
+            x_boundary: ${x_boundary},
+            min_x: ${min_x},
+            max_x: ${max_x},
+            min_y_unit: ${min_y_unit}, 
+            max_y_unit: ${max_y_unit},
+            min_y_in_view: ${min_y_in_view},
+            max_y_in_in_view: ${max_y_in_view},
+            y_delta: ${y_delta},
+            y_boundary: ${y_boundary},
+            y_offset: ${y_offset}
+        `)
+        
+        if(max_x_unit + 2 < 0 || min_x_unit - 2 > 0){//x=0 is not in graph
+
+            console.log('x = 0 not in graph')
+
+            for(let x = min_x, i = 0; x <= max_x; x += x_delta, i++){
+
+                let division = i % this.x_unit_divisions;
+    
+                let line_color = i % this.x_unit_divisions == 0 ? options.unit_color : options.non_unit_color;
+    
+                let x_zoom = Number(Number(x) * Number(this.zoom));
+    
+                console.log(`this.zoom: ${this.zoom}, x: ${x}, x_zoom: ${x_zoom}`)
+    
+                x = x//Number(x_zoom);
+    
+                drawLine(this.graph, x, min_y_in_view , x , max_y_in_view, {width: options.grid_line_width, color: line_color, style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]}});
+    /*
+                let x_int = Math.trunc(getNumericPartOfScientificNotationString(expo(x)));
+    
+                console.log('x_int: ', x_int);
+    
+                if(!Number.isInteger(x_int)){
+                    break;
+                }*/
+            }
+        }
+        else {
+
+            console.log('x = 0 in graph')
+
+            for(let x = 0, i = 0; x <= x_boundary + x_offset; x += x_delta, i++){
+
+                let division = i % this.x_unit_divisions;
+    
+                let line_color = i % this.x_unit_divisions == 0 ? options.unit_color : options.non_unit_color;
+    
+                let x_zoom = Number(Number(x) * Number(this.zoom));
+    
+                console.log(`this.zoom: ${this.zoom}, x: ${x}, x_zoom: ${x_zoom}`)
+    
+                x = x//Number(x_zoom);
+    
+                drawLine(this.graph, x, min_y_in_view , x , max_y_in_view, {width: options.grid_line_width, color: line_color, style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]}});
+
+                drawLine(this.graph, -x, min_y_in_view , -x , max_y_in_view, {width: options.grid_line_width, color: line_color, style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]}});
+            }
+        }
+        
+        if(max_y_unit + 2 < 0 || min_x_unit - 2 > 0){//y = 0 not in view
+
+            console.log('y = 0 not in graph');
+
+            for(let y = min_y_unit - y_range, i = 0; y <= max_y_unit + y_range; y +=  y_delta, i++){
+
+                let division = i % this.y_unit_divisions;
+    
+                let line_color = i % this.y_unit_divisions == 0 ? options.unit_color : options.non_unit_color;
+    
+                let y_zoom = Number(y) * Number(this.zoom);
+    
+                console.log(`this.zoom: ${this.zoom}, y: ${y}, y_zoom: ${y_zoom}`)
+    
+               // y = y_zoom;
+    
+                drawLine(this.graph, min_x_in_view - 1, -1*y, max_x_in_view + 1, -1*y, {width: options.grid_line_width, color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}});
+    
+            }
+        }
+        else{
+
+            for(let y = 0, i = 0; y <= y_boundary + y_offset; y += y_delta, i++){
+
+                let division = i % this.y_unit_divisions;
+    
+                let line_color = i % this.y_unit_divisions == 0 ? options.unit_color : options.non_unit_color;
+    
+                let y_zoom = Number(y) * Number(this.zoom);
+    
+                console.log(`this.zoom: ${this.zoom}, y: ${y}, y_zoom: ${y_zoom}`)
+    
+               // y = y_zoom;
+    
+                drawLine(this.graph, min_x_in_view - 1, -1*y, max_x_in_view + 1, -1*y, {width: options.grid_line_width, color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}});
+    
+                drawLine(this.graph, min_x_in_view - 1, y, max_x_in_view + 1, y, {width: options.grid_line_width, color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}});
+            }
+        }
+        
+    }
+
+    getViewBox(){
+
+        return JSON.parse(this.graph.dataset.view_box);
+    }
+
+    getMinXUnit(zoom = 1){
+
+        let min_x_in_view = this.getMinXInView();
+
+       let min_x_unit =  Math.trunc(min_x_in_view/Number(this.x_unit)) * Number(this.x_unit);
+
+       if(min_x_unit == 0){
+
+            min_x_unit = -this.x_unit 
+       }
+
+       return min_x_unit;
+    }
+
+    getMinXInView(zoom = 1){
+
+        return Number(this.getViewBox().min_x )
+    }
+
+    getMaxXInView(zoom){
+
+        let width = Number(this.getViewBox().width ) 
+
+        return this.getMinXInView() + width;        
+    }
+
+    getMaxXUnit(){
+
+        let max_x_in_view = this.getMaxXInView();
+
+        let max_x_unit = Math.trunc(max_x_in_view/Number(this.x_unit)) * Number(this.x_unit);
+
+        if(max_x_unit == 0){
+
+            max_x_unit = this.x_unit;
+        }
+
+        return max_x_unit;
+    }
+
+
+    getMaxYInView(){
+
+        let height = Number(this.getViewBox().height)
+
+        return this.getMinYInView() + height;   
+    }
+
+    getMaxYUnit(){
+
+        let max_y_in_view = this.getMaxYInView();
+
+        let max_y_unit = Math.trunc(max_y_in_view/Number(this.y_unit)) * Number(this.y_unit);
+
+        if(max_y_unit == 0){
+
+            max_y_unit = this.y_unit;
+        }
+
+        return max_y_unit;
+    }
+
+    getMinYUnit(){
+
+        let min_y_in_view = this.getMinYInView();
+
+        let min_y_unit = Math.trunc(min_y_in_view/this.y_unit) * Number(this.y_unit);
+
+        if(min_y_unit == 0){
+
+            min_y_unit = -this.y_unit;
+        }
+
+        return min_y_unit;
+    }
+
+    getMinYInView(){
+
+        let view_box = this.getViewBox();
+
+        let height = Number(view_box.height);
+
+        let view_box_min_y = Number(view_box.min_y) ;
+
+        let graph_min_y = -1 *(view_box_min_y + height);
+
+        return graph_min_y;
+    }
+
+    drawAxisNumbers(){
+
+        console.log('this.graph.dataset.view_box: ', this.graph.dataset.view_box);
+
+        let min_x_unit = this.getMinXUnit();
+
+        let max_x_unit = this.getMaxXUnit();
+
+        let min_x_in_view = this.getMinXInView();
+
+        let max_x_in_view = this.getMaxXInView();
+
+        let x_delta = (this.x_unit * this.zoom)/this.x_unit_divisions;
+
+        let x_range = (max_x_unit - min_x_unit)
+
+        let min_y_unit = this.getMinYUnit();
+
+        let max_y_unit = this.getMaxYUnit();
+
+        let min_y_in_view = this.getMinYInView();
+
+        let max_y_in_view = this.getMaxYInView();
+
+        let y_delta = (this.y_unit * this.zoom)/this.y_unit_divisions;
+
+        let y_range = max_y_unit - min_y_unit;
+
+        console.log(`drawAxisNumbers min_x: ${min_x_unit}, min_y: ${min_y_unit}, x_range: ${x_range}, y_range: ${y_range}`)
+
+        for(let x = min_x_unit - 2*x_range; x < max_x_unit  + 2*x_range; x += this.x_unit){
+
+            console.log('drawXAxisNumber loop x: ', x);
+
+            this.drawXAxisNumber(x);
+        }
+
+        for(let y = min_y_unit - y_range; y < max_y_unit + y_range; y += this.y_unit){
+
+            this.drawYAxisNumber(y);
+        }
+    }
+
+    getFontSize(){
+        
+        let font_dimension_constant = 30
+
+        let w = this.getMaxXInView() - this.getMinXInView();
+
+        let font_size =  w/font_dimension_constant;
+
+        return font_size;
+    }
+
+    drawXAxisNumber(x, font_size = this.getFontSize()){
+
+        if(x == 0){
+
+            //return
+        }
+
+        let number_label = document.createElementNS(svg_ns, 'text');
+
+        number_label.textContent = x;
+
+        if(x < 0){
+
+           // x = x - 1/8*this.zoom
+        }
+
+        let constant_y_offset = 1/6;
+
+        //y_of * zoom = constant
+
+        number_label.setAttribute('x', x * this.zoom - .11 * 0);
+
+        if(x == 0){
+
+            number_label.setAttribute('x', -1/6);
+        }
+
+        number_label.setAttribute('y', constant_y_offset);
+
+        number_label.setAttribute('font-size', font_size);
+
+        number_label.classList.add('graph-label')
+
+        number_label.classList.add(`x-${number_label.getAttribute('x')}-y-${number_label.getAttribute('y')}`)
+
+        number_label.setAttribute('text-anchor', 'middle');
+
+        this.graph.appendChild(number_label);
+    }
+
+    drawYAxisNumber(y, font_size = this.getFontSize()){
+
+        if(y == 0){
+
+            return;
+        }
+
+        let number_label = document.createElementNS(svg_ns, 'text');
+
+        number_label.textContent = y;
+
+        let constant_x_offset = -1/6;//-this.x_unit/4
+
+        number_label.setAttribute('x', constant_x_offset);
+
+        if(y < 0){
+
+            number_label.setAttribute('x', constant_x_offset - .5*0)
+        }
+
+        number_label.setAttribute('y', -y*this.zoom + 1*font_size/2 +0*this.y_unit/3);
+
+        number_label.setAttribute('font-size', font_size);
+
+        number_label.classList.add('graph-label')
+
+        number_label.classList.add(`x-${number_label.getAttribute('x')}-y-${number_label.getAttribute('y')}`)
+
+        number_label.setAttribute('text-anchor', 'end')
+
+        this.graph.appendChild(number_label);
+    }
+
+    updateContainer(container){
+
+        console.log('updateContainer')
+
+        if(!container){
+
+            return;
+        }
+        
+        this.container = container;
+
+        this.updateBoundary()
+
+       //this.clearAll();
+
+        this.drawGraph(this.options)
+
+        return this.graph;
+    }
+
+    render(){
+
+    }
+}
+
 function drawComplexPlane(options){
 
-    options = new defaultOptions(options, {a_min: -10, a_max: 10, b_min: -10, b_max: 10, 
-    listeners: [], append_to_dom: true, height: '500px', width: '100%', marginBottom: '10px'
+    options = new defaultOptions(options, {
+        a_min: -10, 
+        a_max: 10, 
+        b_min: -10, 
+        b_max: 10, 
+        add_svg_listeners: true,
+        listeners: [], 
+        zoom_functions: [transformComplexPointsOnZoom, transformGridLinesOnZoom, transformScaledViewBox],
+        translate_functions: [],
+        append_to_dom: true, 
+        height: '100%', 
+        width: '100%', 
+        marginBottom: '0px', 
+        axis_numbers: true,
+        drawGridLines: true,
+        drawAxes: true,
+        unit: 1
     });
 
     let a_min = Number(options.a_min);
@@ -506,14 +1351,103 @@ function drawComplexPlane(options){
 
     let b_max = Number(options.b_max);
 
-    let svg = createXYPlane(a_min, a_max, b_min, b_max, {drawAxes: true, drawGridLines: true, positive_y_axis_up: true, line_width: .1, add_svg_listeners: false, append_to_dom: options.append_to_dom});
+    let svg = createXYPlane(a_min, a_max, b_min, b_max, 
+        {
+            drawAxes: options.drawAxes, 
+            drawGridLines: options.drawGridLines, 
+            positive_y_axis_up: true, 
+            line_width: .1, 
+            add_svg_listeners: false, 
+            append_to_dom: options.append_to_dom,
+            axis_numbers: true,
+            width: options.width,
+            height: options.height
+        }
+    );
 
-    addSVGListeners(svg, {point: false});
+    if(options.add_svg_listeners) {
+
+        addSVGListeners(svg, {point: false, zoom: true, zoom_functions: options.zoom_functions, translate_functions: options.translate_functions});
+    }
+
+    let s = a_max;
+
+   // svg.setAttribute('viewBox', `-${a_max/2} -${a_max/2} ${Number(a_max)/2} ${Number(a_max)/2}`);
 
     //addComplexSVGPointListener(svg);
 
     return svg;
 }
+
+function transformScaledViewBox(svg){
+
+    let zoom_factor = svg.dataset.zoom;
+
+    let scaled_view_box = JSON.parse(svg.dataset.view_box);
+
+    for(let boundary in scaled_view_box){
+
+      scaled_view_box[boundary] = Number(scaled_view_box[boundary]) * 1/Number(zoom_factor);
+    }
+
+    svg.dataset.scaled_view_box = JSON.stringify(scaled_view_box);
+  }
+
+  function transformComplexPointsOnZoom(plane /*svg*/, options){
+
+    plane.clearPoints();//plane.clearPlane();
+
+    let zoom_factor = plane.zoom//svg.dataset.zoom;
+
+    options = new defaultOptions(options, {
+
+      class: 'graphed-z-point',
+      initial_stroke_width: 0.02
+    })
+
+    let new_stroke_width = Number(options.initial_stroke_width)/Number(zoom_factor);
+
+    console.log('new_stroke_width: ', new_stroke_width);
+
+    plane.drawPoints({vector_width: new_stroke_width});
+
+    /*let prev_z;
+
+    plane.graphed_points.map((z, z_index) => {
+
+        if(z_index > 0){
+
+            drawZ(z, plane.graph, {vector_width: new_stroke_width, color: 'black', scale: plane.zoom, type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+        }
+
+        prev_z = z;
+
+    })*/
+
+
+  }
+
+  function transformGridLinesOnZoom(svg, options){
+
+    let zoom_factor = svg.dataset.zoom;
+
+    options = new defaultOptions(options, {
+      class: 'graph-grid-line',
+      initial_stroke_width: 0.02
+    })
+
+    let graphed_points = Array.from(svg.querySelectorAll(`.${options.class}`));
+
+    graphed_points.map(point => {
+
+        let untransformed_width = point.getAttribute('stroke-width');
+
+        point.setAttribute('transform', `scale(${zoom_factor} ${zoom_factor})`);
+
+        point.setAttribute('stroke-width', (Number(options.initial_stroke_width) /Number(zoom_factor)));
+
+    })
+  }
 
 function complexFunction(z){
 
@@ -542,7 +1476,7 @@ class ComplexFunctionParameters {
 
         this.t_max = 10;
 
-        this.t_delta = .05
+        this.t_delta = .10
 
         this.t_animated = false;
 
@@ -731,21 +1665,13 @@ class ComplexFunctionParameters {
 
         t_use_parameter_container.style.flexDirection = 'row';
 
-        let t_use_param_label = document.createElement('label');
+        let t_update_param_button = document.createElement('button');
 
-        t_use_param_label.textContent = 'use_param';
+        t_update_param_button.id = this.createId('update-param-button');
 
-        let t_use_param_input = document.createElement('input');
+        t_update_param_button.textContent = 'update parameters';
 
-        t_use_param_input.id = this.createId('use-param-input');
-
-        t_use_param_input.style.width = '20px';
-
-        t_use_param_input.setAttribute('type', 'checkbox');
-
-        t_use_parameter_container.appendChild(t_use_param_label);
-
-        t_use_parameter_container.appendChild(t_use_param_input);
+        t_use_parameter_container.appendChild(t_update_param_button);
 
         t_container.appendChild(t_use_parameter_container);
 
@@ -776,14 +1702,11 @@ class ComplexFunctionParameters {
 
         console.log('addeventlisteners complexfunctionparams')
 
-        let use_input = this.container.querySelector(`#${this.getID('use-param-input')}`);
+        let update_parameters_button = this.container.querySelector(`#${this.getID('update-param-button')}`);
 
-        use_input.addEventListener('change', (e) => {
+        update_parameters_button.addEventListener('click', (e) => {
 
-            if(use_input.checked){
-
-                this.graph_functions['input'](this.getInput(), this.unique_id);
-            }
+            this.graph_functions['addInput'](this.getInput(), this.unique_id);
         })
 
         let a_input = this.container.querySelector(`#${this.getID('a-expr-input')}`);
@@ -950,9 +1873,27 @@ class ComplexFunctionOptions {
 
         function_expression_input.style.width = '40%';
 
+        let clear_input_button = document.createElement('button');
+
+        clear_input_button.textContent = 'clear input';
+
+        clear_input_button.id = this.createId('clear-input-button');
+
+        let upload_image_button = document.createElement('input');
+
+        upload_image_button.type = 'file';
+
+        upload_image_button.accept = `image/png, image/jpg`;
+
+        upload_image_button.id = this.createId('upload-image');
+
         function_options_container.appendChild(function_label);
 
         function_options_container.appendChild(function_expression_input);
+
+        function_options_container.appendChild(clear_input_button);
+
+        function_options_container.appendChild(upload_image_button);
 
         container.appendChild(function_options_container);
 
@@ -978,6 +1919,34 @@ class ComplexFunctionOptions {
             console.log(`changeFunctionExpression ${this.unique_id}: ${function_input.value}`);
 
             this.options.complex_graph_functions['changeFunctionExpression'](function_input.value, this.unique_id);
+        })
+
+        let clear_input_button = this.container.querySelector(`#${this.getId('clear-input-button')}`);
+
+        clear_input_button.addEventListener('click', (e)=>{
+
+            console.log('clearInputOutput ');
+
+            this.options.complex_graph_functions['clearInputOutput']();
+        })
+
+        let upload_image_button = this.container.querySelector(`#${this.getId('upload-image')}`);
+
+        upload_image_button.addEventListener('change', (e)=>{
+
+            let uploaded_image_url;
+
+            const reader = new FileReader();
+            reader.addEventListener('load', (e)=>{
+
+                uploaded_image_url = reader.result;
+
+                let input_plane = document.querySelector(`#${this.getId('input-plane')}`);
+
+                input_plane.style.backgroundImage = `url(${uploaded_image_url})`
+            })
+
+            reader.readAsDataURL(upload_image_button.files[0]);
         })
     }
 
@@ -1011,17 +1980,17 @@ class ComplexGraph {
                 
         this.random_post_fix_id = ComplexGraph.randomPostFixId(4);
 
-        this.input_plane = drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBottom: '0'});
+        this.input_plane = new ComplexPlane({append_to_dom: false, height: '100%', width: '100%', marginBottom: '0', point_color: 'black', style: {border: '1px solid gray', borderRight: '5px solid white', margin: '0', padding: '0'}});
 
         let default_height, default_width = '90%';
 
-        this.input_plane.style.height = default_height;
+        //this.input_plane.graph.style.height = default_height;
 
-        this.input_plane.style.width = default_width;
+        //this.input_plane.graph.style.width = default_width;
 
-        this.input_plane.id = this.randomId('input-plane-')
+        this.input_plane.graph.id = this.randomId('input-plane-')
 
-        this.input_plane.classList.add('complex-graph');
+        this.input_plane.graph.classList.add('complex-graph');
 
         this.draw_function = false;
 
@@ -1029,41 +1998,51 @@ class ComplexGraph {
 
         this.function_expressions = {}; //string
 
-        this.points_array = [];
+        //this.points_array = [];
 
-        this.points_array_start_index = 0;
+        //this.points_array_start_index = 0;
 
         this.mode = options.mode;
 
-        this.output_plane = drawComplexPlane({append_to_dom: false, height: '50%', widht: '50%', marginBottom: '0'});
+        this.output_plane = new ComplexPlane({append_to_dom: false, point_color: 'blue', height: '100%', width: '100%', marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}});//drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBottom: '0'});
 
-        this.output_plane.style.height = default_height;
+        this.output_plane.graph.style.height = default_height;
 
-        this.output_plane.style.width = default_width;
+        this.output_plane.graph.style.width = default_width;
 
-        this.output_plane.id = this.randomId('output-plane-')
+        this.output_plane.graph.style.border = '1px solid gray';
 
-        this.output_plane.classList.add('complex-graph')
+        this.output_plane.graph.style.borderLeft = '5px solid white';
+
+        this.output_plane.graph.id = this.randomId('output-plane-')
+
+        this.output_plane.graph.classList.add('complex-graph')
 
         this.quadrants = {
-            quadrant_1: drawComplexPlane({append_to_dom: false, height: default_height, widht: default_width, marginBottom: '0'}),
-            quadrant_2: drawComplexPlane({append_to_dom: false, height: default_height, widht: default_width, marginBottom: '0'}),
-            quadrant_3: drawComplexPlane({append_to_dom: false, height: default_height, widht: default_width, marginBottom: '0'}),
-            quadrant_4: drawComplexPlane({append_to_dom: false, height: default_height, widht: default_width, marginBottom: '0'})
+            quadrant_1: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
+            quadrant_2: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
+            quadrant_3: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
+            quadrant_4: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}})
         }//a1 a2
 
         for(let quadrant in this.quadrants){
 
-           this.quadrants[quadrant].style.height = default_height;
+           this.quadrants[quadrant].graph.style.height = default_height;
 
-            this.quadrants[quadrant].style.width = default_width;
+            this.quadrants[quadrant].graph.style.width = default_width;
 
-            this.quadrants[quadrant].style.padding = '5px';
+            this.quadrants[quadrant].graph.style.padding = '5px';
 
-            this.quadrants[quadrant].id = this.randomId(`${quadrant}-`);
+            this.quadrants[quadrant].graph.style.border = '1px solid gray';
 
-            this.quadrants[quadrant].classList.add('complex-graph');
+            this.quadrants[quadrant].graph.id = this.randomId(`${quadrant}-`);
+
+            this.quadrants[quadrant].graph.classList.add('complex-graph');
         }
+
+        this.output_planes = this.getOutputPlanes();
+
+        this.all_planes = this.getAllPlanes();
 
         this.listener_map = this.getListenerMap();
 
@@ -1081,8 +2060,9 @@ class ComplexGraph {
         return new ComplexFunctionOptions({
             post_fix_id: this.random_post_fix_id, 
             complex_graph_functions: {
-                'input': this.addInput.bind(this),
-                'changeFunctionExpression': this.changeFunctionExpression.bind(this)
+                'addInput': this.addInput.bind(this),
+                'changeFunctionExpression': this.changeFunctionExpression.bind(this),
+                'clearInputOutput': this.clearInputOutput.bind(this)
             }
         }); 
     }
@@ -1105,6 +2085,14 @@ class ComplexGraph {
     static getGraph(id){
 
 
+    }
+
+    clearInputOutput(){
+
+        for(let plane of this.all_planes){
+
+            plane.clearGraphedPoints();
+        }
     }
 
     createDisplay(){
@@ -1156,6 +2144,10 @@ class ComplexGraph {
         title.textContent = 'Complex Graph';
 
         title.margin_right = '10px';
+
+        title.style.position = 'relative';
+        
+        title.style.left = '30%';
 
         let mode = document.createElement('select');
 
@@ -1266,7 +2258,7 @@ class ComplexGraph {
 
         add_new_function_img.id = this.randomId('add-function-button-');
 
-        add_new_function_img.src = './plus_button.svg'
+        add_new_function_img.src = './plus_button.svg' 
 
         add_new_function_img.style.height = '20px';
 
@@ -1299,7 +2291,7 @@ class ComplexGraph {
 
         graph_container_row_1.style.width = '100%';
 
-        graph_container_row_1.style.height = '50%';
+        graph_container_row_1.style.height = '50%';//was 50
 
 
         let graph_container_row_2 = document.createElement('div');
@@ -1343,28 +2335,28 @@ class ComplexGraph {
 
         if(true){
 
-            graph_container_row_1.appendChild(this.input_plane);
+            graph_container_row_1.appendChild(this.input_plane.graph);
 
-            graph_container_row_1.appendChild(this.output_plane);
+            graph_container_row_1.appendChild(this.output_plane.graph);
 
             if(this.mode != 'z-w'){
 
-                this.output_plane.style.display = 'none';
+                this.output_plane.graph.style.display = 'none';
             }
 
-            graph_container_row_1.appendChild(this.quadrants.quadrant_2);
+            graph_container_row_1.appendChild(this.quadrants.quadrant_2.graph);
 
-            graph_container_row_1.appendChild(this.quadrants.quadrant_1);
+            graph_container_row_1.appendChild(this.quadrants.quadrant_1.graph);
 
-            graph_container_row_2.appendChild(this.quadrants.quadrant_4);
+            graph_container_row_2.appendChild(this.quadrants.quadrant_4.graph);
 
-            graph_container_row_2.appendChild(this.quadrants.quadrant_3);
+            graph_container_row_2.appendChild(this.quadrants.quadrant_3.graph);
 
             for(let quadrant in this.quadrants){
 
                 if(this.mode != 'quadrants'){
 
-                    this.quadrants[quadrant].style.display = 'none';
+                    this.quadrants[quadrant].graph.style.display = 'none';
                 }
             }
         }
@@ -1385,7 +2377,35 @@ class ComplexGraph {
 
         document.body.appendChild(wrapper);
 
+        this.updateContainer(this.input_plane, graph_container_row_1);
+
+        //this.input_plane.updateContainer(graph_container_row_1)
+
         return container;
+    }
+
+    updateContainer(plane, container){
+
+        let old_graph = plane.graph;
+
+        let new_graph = plane.updateContainer(container);
+
+        for(let index in this.all_planes){
+
+            let p = this.all_planes[index];
+
+            if(p.graph == old_graph){
+
+                this.all_planes[index] = new_graph;
+
+                new_graph.id = old_graph.id;
+
+                for(let c of old_graph.classList){
+
+                    new_graph.classList.add(c);
+                }
+            }
+        }
     }
 
     randomId(prefix){
@@ -1420,29 +2440,38 @@ class ComplexGraph {
         return id;
     }
 
-    addEventListeners(){
+    getOutputPlanes(){
 
-       // addSVGListeners(svg, {point: false, mouse: false});
-
-        let output_svgs = [this.output_plane];
-
-        let svgs = [this.input_plane, this.output_plane];
+        let output_planes = [this.output_plane];
 
         for(let quadrant in this.quadrants){
 
-            output_svgs.push(this.quadrants[quadrant]);
-
-            svgs.push(this.quadrants[quadrant]);
+            output_planes.push(this.quadrants[quadrant]);
         }
 
-        this.output_svgs = output_svgs
+        return output_planes;
+    }
 
-        for(let svg of svgs){
+    getAllPlanes(){
 
-            this.addComplexSVGPointListener(svg);
+        let planes = [this.input_plane];
+        
+        for(let plane of this.output_planes){
+
+            planes.push(plane);
         }
 
-        this.addComplexSVGClickListener(this.input_plane, output_svgs);
+        return planes;
+    }
+
+    addEventListeners(){
+
+        for(let plane of this.all_planes){
+
+            this.addComplexSVGPointListener(plane);
+        }
+
+        this.addComplexSVGClickListener(this.input_plane /*this.input_plane.graph*/, this.output_planes/*output_svgs*/);
 
         let mode = document.getElementById(`mode-${this.random_post_fix_id}`)
         
@@ -1511,7 +2540,7 @@ class ComplexGraph {
 
         for(let graph of graphs){
 
-            if(graph != this.input_plane){
+            if(graph != this.input_plane.graph){
 
                 if(graph.style.display == 'none') {
 
@@ -1581,30 +2610,65 @@ class ComplexGraph {
 
         console.log('addInput: ', input);
 
-        this.points_array_start_index = this.points_array.length;
+       // this.input_plane.graphed_points_start_index = this.input_plane.graphed_points.length; //this.points_array_start_index = this.points_array.length;
 
         let prev_z;
+
+        this.input_plane.graphed_points.push([]);
+
+        let input_plane_last_point_set = this.input_plane.lastPointSet();
 
         for(let z_index in input){
 
             let z = input[z_index];
 
-            this.points_array.push(z);
+            input_plane_last_point_set.push(z); //this.input_plane.graphed_points.push(z);
 
             if(z_index > 0){
 
-                drawZ(z, this.input_plane, {color: 'black', type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+                drawZ(z, this.input_plane.graph, {color: 'black', scale: this.input_plane.zoom, type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
             }
 
             prev_z = z;
         }
 
+       // this.graphed_points.push([]);
+
         this.draw_function = false;
 
-        this.drawFunction({id: id});
+        this.drawFunction({id: id, zoom: this.input_plane.graph.zoom});
     }
 
-    f(z, id){
+    clearPlane(plane){
+
+        console.log('clearPlane in ComplexGraph');
+
+        plane.clearPoints();
+        //redraw input_plane
+
+        /*let graphed_input_points = Array.from(plane.graph.querySelectorAll('.graphed-z-point'));
+
+        for(let point of graphed_input_points){
+
+            console.log('point: ', point);
+
+            plane.graph.removeChild(point);
+        }*/
+    }
+
+    clearAllPlanes(){
+
+        for(let plane of this.all_planes){
+
+            this.clearPlane(plane);
+        }
+    }
+
+    resetPointsArray(){
+
+    }
+
+    f_of_z(z, id){
 
         let parser = window.math.parser();
 
@@ -1652,18 +2716,23 @@ class ComplexGraph {
         return Math.sqrt(d_2);
     }
 
-    addComplexSVGClickListener(input_svg, output_svgs){
+    addComplexSVGClickListener(input_plane, output_planes){
         
-        for(let output_svg of output_svgs){
+        for(let output_plane of output_planes){
 
-            output_svg.draw_function = false;
+            output_plane.graph.draw_function = false;
         }
 
-        input_svg.addEventListener('click', (e)=>{
+        input_plane.graph.addEventListener('click', (e)=>{
 
             this.draw_function = !this.draw_function;
 
             let ids = Object.keys(this.function_expressions);
+
+            if(this.draw_function == true){//Comment: this.draw_function initially false
+
+                input_plane.graphed_points.push([]);
+            }
 
             for(let index in ids){
 
@@ -1671,7 +2740,7 @@ class ComplexGraph {
 
                 console.log(`drawFunction click id - this.function_expressions[${id}]: ${this.function_expressions[id]}`);
 
-                this.drawFunction({output_svgs: output_svgs, id: id, update_start_index: index == ids.length - 1});
+                this.drawFunction({output_planes: output_planes, id: id, update_start_index: index == ids.length - 1});
             }
            
         })
@@ -1679,55 +2748,64 @@ class ComplexGraph {
 
     drawFunction(options){
 
-        options = new defaultOptions(options, {output_svgs: this.output_svgs, id: 0, update_start_index: true})
+        options = new defaultOptions(options, {zoom: 1, output_planes: this.output_planes, id: 0, update_start_index: true})
 
-        let output_svgs = options.output_svgs;
+        let output_planes = options.output_planes;
 
         let function_id = options.id;
 
+        let zoom = Number(options.zoom);
+
         let update_start_index = options.update_start_index;
 
-        console.log('output_svgs: ', output_svgs, `, function_expressions: ${getObjectString(this.function_expressions)}`);
+        console.log('output_planes: ', output_planes, `, function_expressions: ${getObjectString(this.function_expressions)}`);
 
-        for(let output_svg of output_svgs){
+        let input_plane_last_point_set = this.input_plane.lastPointSet();
 
-            console.log('output_svg: ', output_svg)
+        for(let output_plane of output_planes){
+
+            console.log('output_plane.graph: ', output_plane.graph);
 
             //output_svg.draw_function = !svg2.draw_function;
 
-            console.log(`click | !draw_function: ${!this.draw_function}, points_array.length > 0 ${this.points_array.length > 0}`)
+            console.log(`click | !draw_function: ${!this.draw_function}, input_plane_last_point_set.length > 0 ${input_plane_last_point_set && input_plane_last_point_set.length > 0}`) //console.log(`click | !draw_function: ${!this.draw_function}, this.input_plane.graphed_points.length > 0 ${this.input_plane.graphed_points.length > 0}`)
 
-            if(!this.draw_function && this.points_array.length > 0){
+            if(!this.draw_function && input_plane_last_point_set && input_plane_last_point_set.length > 0 /*this.input_plane.graphed_points.length > 0*/){
 
                 let f_z_prev;
 
                 let z_prev;
 
-                for(let i = this.points_array_start_index; i < this.points_array.length; i++){
+                output_plane.graphed_points.push([]);
 
-                    let z = this.points_array[i];
+               // for(let i = this.input_plane.graphed_points_start_index; i < this.input_plane.graphed_points.length; i++){
+                for(let i in input_plane_last_point_set){
 
-                    let f_of_z = this.f(z, function_id);
+                    let z = input_plane_last_point_set[i];//let z = this.input_plane.graphed_points[i];
 
-                    let output_map = this.getOutputMap(output_svg.id);
+                    let f_of_z = this.f_of_z(z, function_id);
 
-                    console.log(`output_map ${output_svg.id}: ${getObjectString(output_map)}`);
+                    let output_map = this.getOutputMap(output_plane.graph.id);
+
+                    console.log(`output_map ${output_plane.graph.id}: ${getObjectString(output_map)}`);
 
                     let input_output_map = {'f_z_prev': f_z_prev, 'z_prev': z_prev, 'f_z': f_of_z, 'z': z};
 
                     let a1, a2, b1, b2;
 
-                    if(i > this.points_array_start_index){
+                    if(i > 0 /*this.input_plane.graphed_points_start_index*/){
 
-                        a1 = input_output_map[output_map.a1.variable][output_map.a1.property];
+                        a1 = input_output_map[output_map.a1.variable][output_map.a1.property] //* zoom;
 
-                        b1 = input_output_map[output_map.b1.variable][output_map.b1.property];
+                        b1 = input_output_map[output_map.b1.variable][output_map.b1.property]// * zoom;
 
-                        a2 = input_output_map[output_map.a2.variable][output_map.a2.property];
+                        a2 = input_output_map[output_map.a2.variable][output_map.a2.property]// * zoom;
 
-                        b2 = input_output_map[output_map.b2.variable][output_map.b2.property];
+                        b2 = input_output_map[output_map.b2.variable][output_map.b2.property]//* zoom;
 
-                        drawZ(f_of_z, output_svg, {color: 'blue', type: 'vector', a1: a1, b1: b1, a2: a2, b2: b2});
+                        drawZ(f_of_z, output_plane.graph, {scale: output_plane.zoom, color: 'blue', type: 'vector', a1: a1, b1: b1, a2: a2, b2: b2});
+
+                        output_plane.lastPointSet().push(f_of_z); //output_plane.graphed_points.push(f_of_z);
                     }
                     
                     z_prev = z;
@@ -1737,10 +2815,10 @@ class ComplexGraph {
             }
         }
 
-        if(update_start_index) {
+        /*if(update_start_index) {
             
-            this.points_array_start_index = this.points_array.length;
-        }
+            this.input_plane.graphed_points_start_index = this.input_plane.graphed_points.length
+        }*/
     }
 
     getOutputMap(svg_id){
@@ -1802,7 +2880,9 @@ class ComplexGraph {
         svg.addEventListener('mouse')
     }
 
-    addComplexSVGPointListener(svg){
+    addComplexSVGPointListener(plane){
+
+        let svg = plane.graph;
 
         let pt = svg.createSVGPoint();
 
@@ -1816,15 +2896,20 @@ class ComplexGraph {
 
             if(this.draw_function){
 
-                let z = new Z(svg_point.x, -svg_point.y)
+                let input_plane_last_point_set = this.input_plane.lastPointSet();
 
-                this.points_array.push(z);
+                let z = new Z(Number(svg_point.x)/(Number(plane.zoom)), Number(-svg_point.y)/Number(plane.zoom));// new Z(svg_point.x, -svg_point.y);
 
-                if(this.points_array.length > this.points_array_start_index + 1){
+               input_plane_last_point_set.push(z);//this.input_plane.graphed_points.push(z);
 
-                    let prev_z = this.points_array[this.points_array.length - 2];
+               console.log(`input_plane_last_point_set.length > 1: ${input_plane_last_point_set.length > 1}`);
 
-                    drawZ(z, svg, {color: 'black', type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+                //if(this.input_plane.graphed_points.length > this.input_plane.graphed_points_start_index + 1){
+                if(input_plane_last_point_set.length > 1){
+
+                    let prev_z = input_plane_last_point_set[input_plane_last_point_set.length - 2];//let prev_z = this.input_plane.graphed_points[this.input_plane.graphed_points.length - 2];
+                    //added scale: plane.zoom
+                    drawZ(z, svg, {scale: plane.zoom, color: 'black', type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
                 }
                
             }
@@ -1869,20 +2954,30 @@ function drawZ(z, svg, options){
         a1: 0,
         b1: 0,
         a2: z ? z.a : 0,
-        b2: z ? z.b : 0
+        b2: z ? z.b : 0,
+        class: 'graphed-z-point',
+        scale: 1,
+        vector_width: .02
     })
 
     let type = options.type;
 
     let color = options.color;
 
-    let a1 = options.a1;
+    let scale = Number(options.scale);
 
-    let a2 = options.a2;
+    console.log(`
+        options.scale: ${options.scale},
+        scale: ${scale}
+    `)
 
-    let b1 = options.b1;
+    let a1 = Number(options.a1) * scale;
 
-    let b2 = options.b2
+    let a2 = Number(options.a2) * scale;
+
+    let b1 = Number(options.b1) * scale;
+
+    let b2 = Number(options.b2) * scale;
 
     console.log('drawZ - z: ', z);
 
@@ -1901,7 +2996,9 @@ function drawZ(z, svg, options){
 
         console.log(`drawZ: z_null: ${z == null}, x1: ${typeof a1}, x2: ${typeof b1}, y1: ${typeof a2}, y2: ${typeof b2}`)
 
-        let line = drawLine(svg, a1, b1, a2, b2, {width: .1, color: color});
+        let line = drawLine(svg, a1, b1, a2, b2, {width: options.vector_width, color: color, style: {}});
+
+        line.classList.add(options.class)
 
         return line;
     }
@@ -1911,9 +3008,32 @@ function drawZ(z, svg, options){
 
         let point = drawPoint(svg, z.a, z.b, .15, {color: color})
 
+        point.classList.add(options.class)
+
         return point;
     }
 }
+
+function expo(n, num_decimal_points) {
+
+    return Number.parseFloat(n).toExponential(num_decimal_points);
+  }
+
+  function getNumericPartOfScientificNotationString(n){
+
+    let length_notation = n.length - n.indexOf('e')
+
+    return Number(n.substring(0, n.length - length_notation));
+  }
+
+  function getExponentPartOfScientificNotationString(n){
+
+    let index_of_plus = n.indexOf('+')
+
+    if(index_of_plus >= 0 ) return Number(n.substring(n.indexOf('+') + 1));
+
+    return Number(n.substring(n.indexOf('-') + 1)) *-1
+  }
 
 export default {
 
@@ -1980,3 +3100,78 @@ w._ww.updateA(1)
 */
 
 
+/*
+
+    LABEL QUADRANTS 
+        a1 + b1i -> a2 + b2i
+        a1 vs a2
+        a1 
+
+    AXIS NUMBERS 
+        notation
+        scale limits
+
+    PICTURE MODE
+
+    CHANGE FUHCTION KEEP INPUT CHANGE OUTPUT
+
+    LOOP One of (a,b) in Parameters
+
+        Example: a(t): t + i for i in 0 10
+                a(t): t + i()
+                 b(t): t
+
+    ADD WEB WORKER SUPPORT  
+    
+    TRANSLATE
+        draw points if in grid
+
+    COLOR
+
+    TRANSFORM GRID
+
+    HANDLE RESIZE
+
+*/
+
+function orderReveunue(){
+
+    let rows = Array.from(document.querySelectorAll(`tr`));
+
+    let orders = [];
+
+    let revenue = 0;
+
+    rows.map(row => {
+
+        if(row.textContent.toLowerCase().includes('order revenue')) {
+            
+            let amount = row.querySelector('td.amount');
+
+            console.log('amount: ', parseInt(amount.textContent));
+
+            if(amount) {
+
+                let txt = amount.textContent;
+
+                let num = '';
+
+                for(let char of txt){
+
+                    let n = parseFloat(char);
+
+                    if(Number.isInteger(n)){
+
+                        num += n;
+                    }
+                }
+
+                num = parseFloat(num);
+
+                if(Number.isInteger(num)) revenue += num;
+            }
+        }
+    })
+    
+    return revenue;
+}

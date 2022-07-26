@@ -2,6 +2,10 @@ import logo from './logo.svg';
 import './App.css';
 import Complex from './Complex'
 import { create, all } from 'mathjs'
+import {defaultOptions} from './DefaultOptions'
+import WorkerBuilder from './worker_builder'
+import Worker from './worker.js'
+
 
 function App() {
 
@@ -12,6 +16,8 @@ function App() {
 
     math.parser.eval = math.parser.evaluate
   }
+
+  window.defaultOptions = defaultOptions
 
 
   function addObjectPropertiesToGlobal(array_obj){
@@ -41,10 +47,56 @@ function App() {
 
   addObjectToGlobal(math, 'math');
 
-  let graph = new Complex.ComplexGraph()
+  if(!window.complex_graph){
+
+    let graph = new Complex.ComplexGraph()
+
+    window.complex_graph = graph;
+  }
+
+  let myWorker;
+
+  function messageWorker(message_object){
+
+    console.log('messageWorker: ', message_object)
+
+    if(typeof(Worker) == undefined){
+
+      return;
+    }
+
+    if(!myWorker){
+
+      myWorker = new WorkerBuilder(Worker);
+
+      myWorker.addEventListener('message', (e)=> {
+
+        console.log(`message from worker: `, e.data);
+
+        let message = e.data.action;
+
+        if(message == 'calc-return'){
+
+          let result = document.querySelector('#calc-result');
+          
+          if(result) result.textContent = e.data.value;
+        }
+      })
+    }
+
+    myWorker.postMessage(message_object);
+
+
+  }
 
   return (
     <div className="App">
+
+      <div style={{display: 'flex', flex_direction: 'row', justifyContent: 'center'}} id='test-worker'>
+        <button onClick={()=>{ messageWorker({action: 'calc', n: 1})}}>Calc</button>
+        <div style={{width: '100px', border: '1px solid black'}} id='calc-result'>Result</div>
+      </div>
+    
     </div>
   );
 }
