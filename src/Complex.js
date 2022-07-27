@@ -2111,7 +2111,7 @@ class ComplexFunctionOptions {
 
         display_width_height_button.addEventListener('click', (e)=>{
 
-            this.options.complex_graph_functions['displayWidthHeightContainer']();
+            this.options.complex_graph_functions['displayMessage']({action: 'ratio'});
         })
     }
 
@@ -2228,17 +2228,15 @@ class ComplexGraph {
                 'addInput': this.addInput.bind(this),
                 'changeFunctionExpression': this.changeFunctionExpression.bind(this),
                 'clearInputOutput': this.clearInputOutput.bind(this),
-                'displayWidthHeightContainer': this.displayWidthHeightContainer.bind(this)
+                'displayMessage': this.displayMessage.bind(this)
             }
         }); 
     }
 
-    displayWidthHeightContainer(){
+    displayMessage(message){
 
-        let box = this.input_plane.container.getBoundingClientRect();
-
-        let display = document.getElementById('display-width-height');
-
+        let display = document.getElementById('display-message');
+    
         if(!display){
 
             display = document.createElement('div');
@@ -2261,27 +2259,44 @@ class ComplexGraph {
 
             document.body.style.positon = 'relative';
 
-            display.id = `display-width-height`;
+            display.id = `display-message`;
 
             document.body.appendChild(display);
         }
 
-        if(!this.interval){
+        if(message && message.action && message.action == 'ratio'){
 
-            this.interval = setInterval(()=>{
-
-                let box = this.input_plane.container.getBoundingClientRect();
-
-                let height = Number(box.height)
-
-                let width = Number(box.width);
-
-                let r = width/height;
-
-                display.textContent = `width: ${width.toFixed(0)}, height: ${height.toFixed(0)}, ratio: ${r.toFixed(2)}`;
-
-            }, 100)
+            let box = this.input_plane.container.getBoundingClientRect();
+    
+            if(!this.interval){
+    
+                this.interval = setInterval(()=>{
+    
+                    let box = this.input_plane.container.getBoundingClientRect();
+    
+                    let height = Number(box.height)
+    
+                    let width = Number(box.width);
+    
+                    let r = width/height;
+    
+                    display.textContent = `width: ${width.toFixed(0)}, height: ${height.toFixed(0)}, ratio: ${r.toFixed(2)}`;
+    
+                }, 100)
+            }
         }
+        else if(message && message.action && message.action == 'touch'){
+
+            if(this.interval){
+
+                clearInterval(this.interval);
+
+                this.interval = null;
+            }
+
+            display.textContent = message.value
+        }
+       
     }
 
     getListenerMap(){
@@ -3022,6 +3037,10 @@ class ComplexGraph {
 
             input_plane.graph.addEventListener(event, (e)=>{
 
+                console.log('click touchstart touchend: ', event);
+
+                this.displayMessage({action: 'touch', value: event});
+
                 this.draw_function = !this.draw_function;
     
                 let ids = Object.keys(this.function_expressions);
@@ -3186,35 +3205,42 @@ class ComplexGraph {
 
         let pt = svg.createSVGPoint();
 
-        svg.addEventListener('mousemove', (e) =>{
+        ['mousemove', 'touchmove'].map(event => {
+
+            svg.addEventListener(event, (e) =>{
+
         
-            let svg_point = transformPointToSVG(svg, pt, e);
-        
-            //console.log('svg_point: ', svg_point);
-        
-            svg.dataset.point = JSON.stringify({x: svg_point.x, y: svg_point.y});
-
-            if(this.draw_function){
-
-                let input_plane_last_point_set = this.input_plane.lastComplexIO().points;
-
-                let z = new Z(Number(svg_point.x)/(Number(plane.zoom)), Number(-svg_point.y)/Number(plane.zoom));// new Z(svg_point.x, -svg_point.y);
-
-               input_plane_last_point_set.push(z);//this.input_plane.graphed_points.push(z);
-
-               console.log(`input_plane_last_point_set.length > 1: ${input_plane_last_point_set.length > 1}`);
-
-                //if(this.input_plane.graphed_points.length > this.input_plane.graphed_points_start_index + 1){
-                if(input_plane_last_point_set.length > 1){
-
-                    let prev_z = input_plane_last_point_set[input_plane_last_point_set.length - 2];//let prev_z = this.input_plane.graphed_points[this.input_plane.graphed_points.length - 2];
-                    //added scale: plane.zoom
-                    drawZ(z, svg, {scale: plane.zoom, color: 'black', type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
-                }
-               
-            }
+                let svg_point = transformPointToSVG(svg, pt, e);
             
+                //console.log('svg_point: ', svg_point);
+            
+                svg.dataset.point = JSON.stringify({x: svg_point.x, y: svg_point.y});
+    
+                if(this.draw_function){
+
+                    this.displayMessage({action: 'touch', value: event});
+    
+                    let input_plane_last_point_set = this.input_plane.lastComplexIO().points;
+    
+                    let z = new Z(Number(svg_point.x)/(Number(plane.zoom)), Number(-svg_point.y)/Number(plane.zoom));// new Z(svg_point.x, -svg_point.y);
+    
+                   input_plane_last_point_set.push(z);//this.input_plane.graphed_points.push(z);
+    
+                   console.log(`input_plane_last_point_set.length > 1: ${input_plane_last_point_set.length > 1}`);
+    
+                    //if(this.input_plane.graphed_points.length > this.input_plane.graphed_points_start_index + 1){
+                    if(input_plane_last_point_set.length > 1){
+    
+                        let prev_z = input_plane_last_point_set[input_plane_last_point_set.length - 2];//let prev_z = this.input_plane.graphed_points[this.input_plane.graphed_points.length - 2];
+                        //added scale: plane.zoom
+                        drawZ(z, svg, {scale: plane.zoom, color: 'black', type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+                    }
+                   
+                }
+            })
         })
+
+      
     }
 }
 
