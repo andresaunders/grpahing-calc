@@ -3033,7 +3033,22 @@ class ComplexGraph {
             output_plane.graph.draw_function = false;
         }
 
-        ['click', 'touchstart', 'touchend'].map(event => {
+        function isMobile() { 
+
+            let windowWidth = window.screen.width < window.outerWidth ? window.screen.width : window.outerWidth;
+            
+            return ('ontouchstart' in document.documentElement) && windowWidth < 500;
+        
+        }
+
+        let events = ['touchstart', 'touchend']
+
+        if(!isMobile()){//phone window size <= 480 and has touchstart
+    
+            events.push('click');
+        }
+
+        events.map(event => {
 
             input_plane.graph.addEventListener(event, (e)=>{
 
@@ -3058,10 +3073,9 @@ class ComplexGraph {
     
                     this.drawFunction({output_planes: output_planes, id: id, update_start_index: index == ids.length - 1});
                 }
-               
+                
             })
-        })
-
+        })    
        
     }
 
