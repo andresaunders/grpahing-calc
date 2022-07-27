@@ -89,14 +89,16 @@ function App() {
 
   }
 
+  let display_worker_test = false;
+
   return (
     <div className="App">
-
+      {display_worker_test  &&
       <div style={{display: 'flex', flex_direction: 'row', justifyContent: 'center'}} id='test-worker'>
         <button onClick={()=>{ messageWorker({action: 'calc', n: 1})}}>Calc</button>
         <div style={{width: '100px', border: '1px solid black'}} id='calc-result'>Result</div>
       </div>
-    
+}
     </div>
   );
 }
