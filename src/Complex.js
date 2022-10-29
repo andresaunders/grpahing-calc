@@ -1,11 +1,11 @@
 
 import {defaultOptions} from './DefaultOptions.js';
 import { getObjectString } from './Format.js';
-import {svg_ns, addSVGListeners, transformPointToSVG} from './Svg.js';
+import {svg_ns, addSVGListeners, transformPointToSVG, updateSVGViewBox} from './Svg.js';
 import {evalComplexExpression} from './Expression'
 import {createXYPlane, drawPoint, drawLine, drawFunction} from './GraphXY.js';
 import {randomRange} from './Random'
-import { i } from 'mathjs';
+
 
 let z_index = 0;
 
@@ -14,6 +14,10 @@ let z_max = 10;
 let use_z_max = false;
 
 let eval_function = 'evaluate'
+
+let upload_image = false;
+
+let add_functions = false;
 
 class Angle {
 
@@ -341,15 +345,65 @@ class Z {
         return z_copy;
     }
 
-    static function(f_expression, z){
+    static function(function_expression, z){
 
-        let parser = window.math.parser();
+       let parser = window.math.parser();
+
+       let eval_expression;
+
+        if(function_expression.includes('a') || function_expression.includes('b')){
+
+            if(function_expression.includes('z')){
+    
+                parser[eval_function](`f(z,a,b) = ${function_expression}`);
+    
+                eval_expression = parser[eval_function](`f(${z.a} + ${z.b}i,${z.a},${z.b})`);
+            }
+            else {
+    
+                parser[eval_function](`f(a,b) = ${function_expression}`);
+    
+                eval_expression = parser[eval_function](`f(${z.a},${z.b})`);
+            }
+           }
+           else{
+    
+            parser[eval_function](`f(z) = ${function_expression}`);
+    
+            eval_expression = parser[eval_function](`f(${z.a} + ${z.b}i)`);
+           }
+    
+    
+    
+           // parser[eval_function](`f(a,b) = ${function_expression}`);
+    
+           
+    
+            console.log('eval_expression: ', eval_expression, ', function_expression: ', function_expression);
+    
+            let a,b;
+    
+            if(Number.isInteger(Math.round(eval_expression))){//expression is a real number not a complex one
+    
+                a = Number(eval_expression);
+                b = 0;
+            }
+            else {
+    
+                a = eval_expression.re;
+    
+                b = eval_expression.im;
+            }
+          
+            return new Z(a,b);
+
+       /* let parser = window.math.parser();
 
         parser[eval_function](`f(z) = ${f_expression}`);
 
         let eval_expression = parser[eval_function](`f(${z.a} + ${z.b}i)`);
 
-        return new Z(eval_expression.re, eval_expression.im);
+        return new Z(eval_expression.re, eval_expression.im);*/
     }
 
     static parametricFunction(parametric_expression, dependent_var_name, independent_var_values){
@@ -506,11 +560,14 @@ class ComplexIO {
             scale: 1,
             t_delta: .05,
             points: [],
+            color: 'black'
         })
 
         this.is_parameter = options.is_parameter;
 
         this.can_update = this.is_parameter;
+
+        this.color = options.color;
 
         if(!this.can_update){
 
@@ -534,6 +591,11 @@ class ComplexIO {
 
             this.points = this.updatePoints({scale: this.scale});
         }
+    }
+
+    updateColor(color){
+
+        this.color = color;
     }
 
     updatePoints(options){
@@ -639,6 +701,7 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
         options = new defaultOptions(options, 
             {
+                label: null,
                 a_min: -this.graph_width/2, 
                 a_max: this.graph_width/2 ,
                 b_min: -this.graph_height/2, 
@@ -656,6 +719,8 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
         );
 
         this.options = options;
+
+        this.unit = 1;
 
         this.x_unit = 1;
 
@@ -677,13 +742,37 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
         this.zoom = 1;
 
-        this.graphed_points_default_color = options.point_color;
+        this.color = options.point_color;
 
         this.graphed_points = [];//[];
 
         this.graphed_points_start_index = 0;
+
+        this.vector_width = .04;
     
         this.drawGraph(this.options);
+
+        this.addLabel(options.label);
+    }
+
+    addLabel(label){
+
+        if(!label){
+
+            return;
+        }
+
+        let span = document.createElement('span');
+
+        span.textContent = label;
+
+        span.style.position = 'absolute';
+
+        span.style.left = '0';
+
+        span.style.bottom = '0';
+
+        this.graph.appendChild(span);
     }
 
     lastComplexIO(options){
@@ -712,7 +801,7 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
         this.graph_width = width_height_ratio * this.graph_height;
 
-        console.log(`this.graph_width: ${this.graph_width}, this.graph_height: ${this.graph_height}`)
+        console.log(`this.graph_width: ${this.graph_width}, this.graph_height: ${this.graph_height}, width_height_ratio: `, width_height_ratio)
 
         if(init){
 
@@ -720,19 +809,73 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
             this.options.a_max = this.graph_width/2;
             this.options.b_min = -this.graph_height/2;
             this.options.b_max = this.graph_height/2;
+            this.initial_width_height_ratio = width_height_ratio;
         }
-        else{
+        else {
 
+            let box = this.getViewBox();
 
+            console.log('updateBoundary view_box before: ', getObjectString(box));
+
+            let view_box_height = Number(box.height);
+
+            let view_box_width = Number(box.width);
+
+            let view_box_min_x = Number(box.min_x);
+
+            let view_box_min_y = Number(box.min_y);
+
+            if(width_height_ratio < this.initial_width_height_ratio){// dy dh
+
+                let dy = (1/2) * (/*(this.initial_width_height_ratio/width_height_ratio) - 1)*/width_height_ratio/this.initial_width_height_ratio) * view_box_height
+
+                console.log('updateBoundar dy: ', dy);
+
+                let new_min_y = view_box_min_y - dy;
+
+                let new_height = view_box_height + 2*dy;
+
+                box.min_y = new_min_y;
+
+                box.height = new_height;
+            }
+            else if(width_height_ratio > this.initial_width_height_ratio){// dx dw
+
+                let dx = (1/2) * ((width_height_ratio/this.initial_width_height_ratio) - 1) * view_box_width
+
+                console.log('updateBoundar dx: ', dx);
+
+                let new_min_x = view_box_min_x- dx;
+
+                let new_width = view_box_width + 2*dx;
+
+                box.min_x = new_min_x;
+                
+                box.width = new_width;
+            }
+
+            console.log('updateBoundary view_box after: ', getObjectString(box));
+
+            updateSVGViewBox(this.graph, box);
+
+            this.zoomFunction();
         }
        
     }
 
     zoomFunction(){
 
+      
+
         let view_box = this.graph.dataset.view_box//plane.dataset.view_box;
 
+        let prev_zoom = this.zoom;
+
         this.zoom = Number(this.graph.dataset.zoom)//Number(plane.dataset.zoom);
+
+        console.log(`zoomFunction(): prev: ${prev_zoom}, update: ${this.zoom}`)
+
+
 
         //transformGridLinesOnZoom(plane);
 
@@ -757,9 +900,14 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
         //min x min y min width height
     }
 
+    updateColor(color){
+
+        this.color = color;
+    }
+
     drawPoints(options){
 
-        options = new defaultOptions(options, {vector_width: .02, color: this.graphed_points_default_color})
+        options = new defaultOptions(options, {vector_width: .02, color: this.color})
 
         console.log(`drawPoints this.graphed_points: `, this.graphed_points);
 
@@ -771,7 +919,7 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
     
                 if(z_index > 0){
     
-                    drawZ(z, this.graph, {vector_width: options.vector_width, color: options.color, scale: Number(this.zoom), type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+                    drawZ(z, this.graph, {vector_width: options.vector_width, color: complex_io.color, scale: Number(this.zoom), type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
                 }
     
                 prev_z = z;
@@ -793,15 +941,15 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
     options = new defaultOptions(options, {
 
       class: 'graphed-z-point',
-      initial_stroke_width: 0.02,
-      color: this.graphed_points_default_color
+      vector_width: this.vector_width,
+      color: this.color
     })
 
     let new_stroke_width = Number(options.initial_stroke_width);//Number(options.initial_stroke_width)/Number(zoom_factor);
 
     console.log('new_stroke_width: ', new_stroke_width);
 
-    this.drawPoints({vector_width: new_stroke_width, color: this.graphed_points_default_color});
+    this.drawPoints({vector_width: options.vector_width, color: this.color});
 
     //let prev_z;
 
@@ -840,6 +988,8 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
             return;
         }
+
+        transformScaledViewBox(this.graph)
 
         this.clearGridLines();
 
@@ -904,6 +1054,8 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
         this.y_unit_divisions = 5;
       }
+
+      this.unit = unit;
 
       this.x_unit = unit * Math.pow(10, exponent_part);
 
@@ -999,6 +1151,8 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
         this.graph = drawComplexPlane(options);
 
+        this.graph.setAttribute('preserveAspectRatio', 'xMidYMid slice')
+
         for(let s in options.style){
 
             this.graph.style[s] = options.style[s]
@@ -1042,9 +1196,25 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
         let line_width = .03
 
-        drawLine(this.graph, 0, min_y_in_view - 5, 0, max_y_in_view + 5, {width: line_width, style: {'classList': ['graph-axes']}});//y - axes
+        drawLine({
+            svg: this.graph, 
+            x1: 0,
+            y1: min_y_in_view - 5,
+            x2: 0,
+            y2: max_y_in_view + 5,
+            width: line_width, 
+            style: {'classList': ['graph-axes']}
+        });//y - axes
 
-        drawLine(this.graph, min_x_in_view - 5, 0, max_x_in_view + 5, 0, {width: line_width, style: {'classList': ['graph-axes']}}); 
+        drawLine({
+            svg: this.graph, 
+            x1: min_x_in_view - 5, 
+            y1: 0, 
+            x2: max_x_in_view + 5, 
+            y2:0, 
+            width: line_width, 
+            style: {'classList': ['graph-axes']}
+        }); 
     }
     
     drawGridLines(options){
@@ -1114,7 +1284,7 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
             y_offset: ${y_offset}
         `)
         
-        if(max_x_unit + 2 < 0 || min_x_unit - 2 > 0){//x=0 is not in graph
+        if(max_x_unit + 2 < 0 || min_x_unit - 2 > 0){//x=0 is not in graph VERTICAL LINES
 
             console.log('x = 0 not in graph')
 
@@ -1130,7 +1300,16 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
     
                 x = x//Number(x_zoom);
     
-                drawLine(this.graph, x, min_y_in_view , x , max_y_in_view, {width: options.grid_line_width, color: line_color, style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]}});
+                drawLine({
+                    svg: this.graph,
+                    x1: x, 
+                    y1: min_y_in_view ,
+                    x2: x , 
+                    y2: max_y_in_view, 
+                    width: options.grid_line_width, 
+                    color: line_color, 
+                    style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]
+                }});
     /*
                 let x_int = Math.trunc(getNumericPartOfScientificNotationString(expo(x)));
     
@@ -1145,7 +1324,7 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
             console.log('x = 0 in graph')
 
-            for(let x = 0, i = 0; x <= x_boundary + x_offset; x += x_delta, i++){
+            for(let x = 0, i = 0; x <= x_boundary +  false ? x_offset : 0; x += x_delta, i++){
 
                 let division = i % this.x_unit_divisions;
     
@@ -1157,17 +1336,33 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
     
                 x = x//Number(x_zoom);
     
-                drawLine(this.graph, x, min_y_in_view , x , max_y_in_view, {width: options.grid_line_width, color: line_color, style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]}});
+                drawLine({
+                    svg: this.graph, 
+                    x1: x, 
+                    y1: min_y_in_view, 
+                    x2: x, 
+                    y2: max_y_in_view, 
+                    width: options.grid_line_width, 
+                    color: line_color, 
+                    style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]
+                }});
 
-                drawLine(this.graph, -x, min_y_in_view , -x , max_y_in_view, {width: options.grid_line_width, color: line_color, style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]}});
+                drawLine({
+                    svg: this.graph, 
+                    x1: -x, 
+                    y1: min_y_in_view, 
+                    x2: -x , 
+                    y2: max_y_in_view,
+                    width: options.grid_line_width, 
+                    color: line_color, style: {'classList':['graph-grid-line', `x_${x}`, `div-${division}`]}});
             }
         }
         
-        if(max_y_unit + 2 < 0 || min_x_unit - 2 > 0){//y = 0 not in view
+        if(max_y_unit + 2 < 0 || min_x_unit - 2 > 0){//y = 0 not in view //HORIZONTAL LINES
 
             console.log('y = 0 not in graph');
 
-            for(let y = min_y_unit - y_range, i = 0; y <= max_y_unit + y_range; y +=  y_delta, i++){
+            for(let y = min_y_unit - false ? y_range : 0, i = 0; y <= max_y_unit + false ? y_range : 0; y +=  y_delta, i++){
 
                 let division = i % this.y_unit_divisions;
     
@@ -1179,13 +1374,21 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
     
                // y = y_zoom;
     
-                drawLine(this.graph, min_x_in_view - 1, -1*y, max_x_in_view + 1, -1*y, {width: options.grid_line_width, color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}});
+                drawLine({
+                    svg: this.graph, 
+                    x1: min_x_in_view - 1, 
+                    y1: -1*y, 
+                    x2: max_x_in_view + 1, 
+                    y2: -1*y, 
+                    width: options.grid_line_width, 
+                    color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}
+                });
     
             }
         }
         else{
 
-            for(let y = 0, i = 0; y <= y_boundary + y_offset; y += y_delta, i++){
+            for(let y = 0, i = 0; y <= y_boundary + false ? y_offset : 0; y += y_delta, i++){
 
                 let division = i % this.y_unit_divisions;
     
@@ -1197,9 +1400,25 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
     
                // y = y_zoom;
     
-                drawLine(this.graph, min_x_in_view - 1, -1*y, max_x_in_view + 1, -1*y, {width: options.grid_line_width, color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}});
+                drawLine({
+                    svg: this.graph, 
+                    x1: min_x_in_view - 1, 
+                    y1: -1*y, 
+                    x2: max_x_in_view + 1, 
+                    y2: -1*y, 
+                    width: options.grid_line_width, 
+                    color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}
+                });
     
-                drawLine(this.graph, min_x_in_view - 1, y, max_x_in_view + 1, y, {width: options.grid_line_width, color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}});
+                drawLine({
+                    svg: this.graph, 
+                    x1: min_x_in_view - 1, 
+                    y1: y, 
+                    x2: max_x_in_view + 1, 
+                    y2: y, 
+                    width: options.grid_line_width, 
+                    color: line_color, style: {'classList': ['graph-grid-line',`y_${y}`, `div-${division}`]}
+                });
             }
         }
         
@@ -1362,7 +1581,19 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
 
         let number_label = document.createElementNS(svg_ns, 'text');
 
-        number_label.textContent = x;
+        if(Math.abs(x) < this.dx_unit){
+            
+             x = 0
+        }
+
+        if(x == 0 || this.zoom < 2){
+
+            number_label.textContent = x;
+        }
+        else {
+
+            number_label.textContent = this.formatAxisNumber(x);
+        }
 
         if(x < 0){
 
@@ -1393,16 +1624,32 @@ drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBotto
         this.graph.appendChild(number_label);
     }
 
+    formatAxisNumber(n){
+
+        let e = expo(n, 2);
+
+        let ret = e//getNumericPartOfScientificNotationString(e);
+
+        return ret;
+    }
+
     drawYAxisNumber(y, font_size = this.getFontSize()){
 
-        if(y == 0){
+        if(y == 0 || Math.abs(y) < this.dy_unit){
 
             return;
         }
 
         let number_label = document.createElementNS(svg_ns, 'text');
 
-        number_label.textContent = y;
+        if(y == 0 || this.zoom < 2){
+
+            number_label.textContent = y;
+        }
+        else {
+
+            number_label.textContent =  this.formatAxisNumber(y);
+        }
 
         let constant_x_offset = -1/6;//-this.x_unit/4
 
@@ -1531,7 +1778,7 @@ function transformScaledViewBox(svg){
     options = new defaultOptions(options, {
 
       class: 'graphed-z-point',
-      initial_stroke_width: 0.02
+      vector_width: this.vector_width
     })
 
     let new_stroke_width = Number(options.initial_stroke_width)/Number(zoom_factor);
@@ -1659,7 +1906,9 @@ class ComplexFunctionParameters {
 
         a_expression_input.id = this.createId('a-expr-input');
 
-        a_expression_input.style.width = '40%';
+        a_expression_input.style.width = '100%';//'40%';
+
+        a_expression_input.style.marginRight = '5%';
 
         a_expression_input.value = 't';
 
@@ -1677,6 +1926,8 @@ class ComplexFunctionParameters {
 
         b_expression_container.style.width = '100%';
 
+      
+
         //b_expression_container.style.height = '20px';
 
         b_expression_container.style.flexDirection = 'row';
@@ -1693,7 +1944,9 @@ class ComplexFunctionParameters {
 
         b_expression_input.id = this.createId('b-expr-input');
 
-        b_expression_input.style.width = '40%';
+        b_expression_input.style.width = '100%';//'40%';
+
+        b_expression_input.style.marginRight = '5%';
 
         b_expression_input.value = 't';
 
@@ -1724,7 +1977,7 @@ class ComplexFunctionParameters {
 
         t_min_input.id = this.createId('t-min-input');
 
-        t_min_input.style.width = '20%';
+        t_min_input.style.width = '30%';
 
         let t_min_label = document.createElement('label');
 
@@ -1740,7 +1993,7 @@ class ComplexFunctionParameters {
 
         t_max_input.id = this.createId('t-max-input');
 
-        t_max_input.style.width = '20%';
+        t_max_input.style.width = '30%';
 
         t_max_input.value = 10;
 
@@ -1781,7 +2034,7 @@ class ComplexFunctionParameters {
 
         t_animate_container.appendChild(t_animate_input);
 
-        t_container.appendChild(t_animate_container);
+       // t_container.appendChild(t_animate_container);
 
 
         let t_use_parameter_container = document.createElement('div');
@@ -1799,6 +2052,10 @@ class ComplexFunctionParameters {
         t_update_param_button.id = this.createId('update-param-button');
 
         t_update_param_button.textContent = 'update parameters';
+
+        t_update_param_button.style.width = '90%';
+
+        t_update_param_button.style.marginLeft = '5%';
 
         t_use_parameter_container.appendChild(t_update_param_button);
 
@@ -2005,51 +2262,117 @@ class ComplexFunctionOptions {
 
         function_options_container.style.display = 'flex';
 
-        function_options_container.style.flexDirection = 'row';
+        function_options_container.style.flexDirection = 'column';
 
         function_options_container.style.width = '100%';
 
-        function_options_container.style.height = '20px';
+        function_options_container.style.height = 'fit-content';
 
-        function_options_container.style.borderBottom = '1px dashed black';
+        //function_options_container.style.borderBottom = '1px dashed black';
+
+        function_options_container.style.marginBottom = '5px'
+
+        function_options_container.style.paddingBottom = '5px';
+
+        let function_expression_input_container = document.createElement('div');
+
+        function_expression_input_container.style.display = 'flex';
+
+        function_expression_input_container.style.flexDirection = 'row';
 
         let function_label = document.createElement('label');
 
         function_label.textContent = 'f(z)';
 
+        function_expression_input_container.appendChild(function_label);
+
         let function_expression_input = document.createElement('input');
+
 
         function_expression_input.id = this.createId('function-input');
 
-        function_expression_input.style.width = '40%';
+        function_expression_input.style.width = '100%';//'40%';
+
+        function_expression_input.style.marginRight = '5%';
+
+        function_expression_input_container.appendChild(function_expression_input);
+
+        let color_container = document.createElement('div');
+
+        color_container.style.display = 'flex';
+
+        color_container.style.flexDirection = 'row';
+
+        color_container.id = this.createId('color-container');
+
+        let color_label = document.createElement('label');
+
+        color_label.textContent = 'color';
+
+        color_label.id = this.createId('color-label')
+
+        let color_input = document.createElement('input');
+
+        color_input.id = this.createId('color-input');
+
+        color_input.type = 'color';
+
+        color_input.style.width = '100%';
+
+        color_input.style.marginRight = '5%'
+
+        color_container.appendChild(color_label);
+
+        color_container.appendChild(color_input);
+
+     
 
         let clear_input_button = document.createElement('button');
 
-        clear_input_button.textContent = 'clear input';
+        clear_input_button.textContent = 'clear';
 
         clear_input_button.id = this.createId('clear-input-button');
 
-        let upload_image_button = document.createElement('input');
+        clear_input_button.style.width = '90%';
 
-        upload_image_button.type = 'file';
+        clear_input_button.style.marginLeft = '5%';
 
-        upload_image_button.accept = `image/png, image/jpg`;
 
-        upload_image_button.id = this.createId('upload-image');
+        let upload_image_button;
 
+        if(upload_image){
+
+            upload_image_button = document.createElement('input');
+
+            upload_image_button.type = 'file';
+    
+            upload_image_button.accept = `image/png, image/jpg`;
+    
+            upload_image_button.id = this.createId('upload-image');
+
+            function_expression_input_container.appendChild(upload_image_button);
+        }
+       
         let display_width_height_button = document.createElement('button');
 
         display_width_height_button.textContent = 'display';
 
         display_width_height_button.id = 'display-w-h-button';
 
-        function_options_container.appendChild(function_label);
+       // function_options_container.appendChild(function_label);
 
-        function_options_container.appendChild(function_expression_input);
+       // function_options_container.appendChild(function_expression_input);
+
+       function_options_container.appendChild(function_expression_input_container);
+
+       function_options_container.appendChild(color_container);
 
         function_options_container.appendChild(clear_input_button);
 
-        function_options_container.appendChild(upload_image_button);
+        if(upload_image) {
+
+            function_options_container.appendChild(upload_image_button);
+        }
 
         function_options_container.appendChild(display_width_height_button);
 
@@ -2079,6 +2402,15 @@ class ComplexFunctionOptions {
             this.options.complex_graph_functions['changeFunctionExpression'](function_input.value, this.unique_id);
         })
 
+        let color_input = this.container.querySelector(`#${this.getId('color-input')}`);
+
+        color_input.addEventListener('input', (e)=> {
+
+            console.log('colorInput ', color_input.value);
+
+            this.options.complex_graph_functions['updatePlanesColor'](color_input.value)
+        })
+
         let clear_input_button = this.container.querySelector(`#${this.getId('clear-input-button')}`);
 
         clear_input_button.addEventListener('click', (e)=>{
@@ -2088,26 +2420,32 @@ class ComplexFunctionOptions {
             this.options.complex_graph_functions['clearInputOutput']();
         })
 
-        let upload_image_button = this.container.querySelector(`#${this.getId('upload-image')}`);
+        if(upload_image){
 
-        upload_image_button.addEventListener('change', (e)=>{
+            let upload_image_button = this.container.querySelector(`#${this.getId('upload-image')}`);
 
-            let uploaded_image_url;
-
-            const reader = new FileReader();
-            reader.addEventListener('load', (e)=>{
-
-                uploaded_image_url = reader.result;
-
-                let input_plane = document.querySelector(`#${this.getId('input-plane')}`);
-
-                input_plane.style.backgroundImage = `url(${uploaded_image_url})`
+            upload_image_button.addEventListener('change', (e)=>{
+    
+                let uploaded_image_url;
+    
+                const reader = new FileReader();
+                reader.addEventListener('load', (e)=>{
+    
+                    uploaded_image_url = reader.result;
+    
+                    let input_plane = document.querySelector(`#${this.getId('input-plane')}`);
+    
+                    input_plane.style.backgroundImage = `url(${uploaded_image_url})`
+                })
+    
+                reader.readAsDataURL(upload_image_button.files[0]);
             })
-
-            reader.readAsDataURL(upload_image_button.files[0]);
-        })
+        }
+    
 
         let display_width_height_button = document.getElementById('display-w-h-button');
+
+        display_width_height_button.style.display = 'none'
 
         display_width_height_button.addEventListener('click', (e)=>{
 
@@ -2169,7 +2507,7 @@ class ComplexGraph {
 
         this.mode = options.mode;
 
-        this.output_plane = new ComplexPlane({append_to_dom: false, point_color: 'blue', height: '100%', width: '100%', marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}});//drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBottom: '0'});
+        this.output_plane = new ComplexPlane({append_to_dom: false, point_color: 'black', height: '100%', width: '100%', marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}});//drawComplexPlane({append_to_dom: false, height: '50%', width: '50%', marginBottom: '0'});
 
         this.output_plane.graph.style.height = default_height;
 
@@ -2184,10 +2522,10 @@ class ComplexGraph {
         this.output_plane.graph.classList.add('complex-graph')
 
         this.quadrants = {
-            quadrant_1: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
-            quadrant_2: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
-            quadrant_3: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
-            quadrant_4: new ComplexPlane({append_to_dom: false, point_color: 'blue', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}})
+            quadrant_1: new ComplexPlane({label: this.getLabelText('1'),append_to_dom: false, point_color: 'black', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
+            quadrant_2: new ComplexPlane({label: this.getLabelText('2'), append_to_dom: false, point_color: 'black', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
+            quadrant_3: new ComplexPlane({label: this.getLabelText('3'), append_to_dom: false, point_color: 'black', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}}),
+            quadrant_4: new ComplexPlane({label: this.getLabelText('4'), append_to_dom: false, point_color: 'black', height: default_height, widht: default_width, marginBottom: '0', style: {border: '1px solid gray', margin: '0', padding: '0'}})
         }//a1 a2
 
         for(let quadrant in this.quadrants){
@@ -2228,12 +2566,23 @@ class ComplexGraph {
                 'addInput': this.addInput.bind(this),
                 'changeFunctionExpression': this.changeFunctionExpression.bind(this),
                 'clearInputOutput': this.clearInputOutput.bind(this),
-                'displayMessage': this.displayMessage.bind(this)
+                'displayMessage': this.displayMessage.bind(this),
+                'updatePlanesColor' : this.updatePlanesColor.bind(this)
             }
         }); 
     }
 
+    updatePlanesColor(color){
+
+        for(let plane of this.all_planes){
+
+            plane.updateColor(color);
+        }
+    }
+
     displayMessage(message){
+
+        return;
 
         let display = document.getElementById('display-message');
     
@@ -2328,6 +2677,7 @@ class ComplexGraph {
     }
 
     createDisplay(){
+
 
         let wrapper = document.createElement('div');
 
@@ -2451,9 +2801,9 @@ class ComplexGraph {
 
         function_options_container.style.width = '100%';
 
-        function_options_container.style.height = '95%';
+        function_options_container.style.height = add_functions ? '95%' : '100%';
 
-        function_options_container.style.overflowY = 'scroll';
+        if(add_functions) function_options_container.style.overflowY = 'scroll';
 
         function_options_container.style.border = '1px solid black';
 
@@ -2470,7 +2820,7 @@ class ComplexGraph {
 
       
 
-
+ /* ADD FUNCTION FEATURE NOT CURRENTLY SUPPORTED
         let add_new_function_options_container = document.createElement('div');
 
         add_new_function_options_container.style.display = 'flex';
@@ -2485,7 +2835,7 @@ class ComplexGraph {
 
         add_new_function_options_container.style.border = '1px solid black';
 
-
+       
         let add_new_function_img = document.createElement('img');
 
         add_new_function_img.id = this.randomId('add-function-button-');
@@ -2498,7 +2848,7 @@ class ComplexGraph {
 
         add_new_function_options_container.appendChild(add_new_function_img);
 
-        side_bar.appendChild(add_new_function_options_container)
+        side_bar.appendChild(add_new_function_options_container)*/
 
 
         let graph_container = document.createElement('div');
@@ -2635,6 +2985,8 @@ class ComplexGraph {
 
     updateContainer(plane, container){
 
+       
+
         let old_graph = plane.graph;
 
         let new_graph = plane.updateContainer(container);
@@ -2748,6 +3100,8 @@ class ComplexGraph {
             this.changeGraphMode(e.target.value)
         });
 
+        /*
+        ADD FUNCTION FEATURE NOT CURRENTLY SUPPORTED
         let add_function_button = document.getElementById(this.randomId('add-function-button-'));
 
         add_function_button.addEventListener('click', (e) =>{
@@ -2755,7 +3109,7 @@ class ComplexGraph {
             let function_option = this.createNewFunctionOption();
 
             this.complex_function_options.push(function_option);
-        })
+        })*/
 
     }
 
@@ -2824,6 +3178,11 @@ class ComplexGraph {
             this.input_plane.graph.style.height = '100%';
             this.input_plane.graph.style.position = 'relative';
             this.input_plane.graph.style.top = '0%';
+        
+
+           // this.input_plane.updateBoundary(false);
+
+           // this.output_plane.updateBoundary(false);
         }
         else if(this.mode == 'quadrants'){
 
@@ -2844,6 +3203,8 @@ class ComplexGraph {
 
             this.input_plane.graph.style.marginTop = '0%';
 
+            //this.input_plane.updateBoundary(false);
+
             for(let quadrant_name in this.quadrants){
 
                 let quadrant = this.quadrants[quadrant_name];
@@ -2857,6 +3218,8 @@ class ComplexGraph {
                 quadrant.graph.style.position = 'absolute';
 
                 quadrant.graph.style.left = quadrant_left_map[quadrant_name]
+
+              //  quadrant.updateBoundary(false);
             }
 
         }
@@ -2928,6 +3291,8 @@ class ComplexGraph {
 
         let input_plane_last_point_set = this.input_plane.lastComplexIO().updatePoints({scale: Number(this.input_plane.zoom), view_box: this.input_plane.getViewBox()});
 
+        complex_io.updateColor(this.input_plane.color);
+
         for(let z_index in input_plane_last_point_set/*input*/){
 
             let z = input_plane_last_point_set[z_index]//input[z_index];
@@ -2936,7 +3301,7 @@ class ComplexGraph {
 
             if(z_index > 0){
 
-                drawZ(z, this.input_plane.graph, {color: 'black', scale: this.input_plane.zoom, type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+                drawZ(z, this.input_plane.graph, {color: complex_io.color, scale: this.input_plane.zoom, type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
             }
 
             prev_z = z;
@@ -2980,19 +3345,11 @@ class ComplexGraph {
 
     f_of_z(z, id){
 
-        let parser = window.math.parser();
-
        // parser[eval_function]uate(`z = ${name_value.z.a} + ${name_value.z.b}`);
 
-        parser[eval_function](`f(z) = ${this.function_expressions[id]}`);
+       let function_expression = this.function_expressions[id];
 
-        let eval_expression = parser[eval_function](`f(${z.a} + ${z.b}i)`);
-
-        console.log('eval_expression: ', eval_expression, ', function_expression: ', this.function_expressions[id]);
-
-        return new Z(eval_expression.re, eval_expression.im);
-
-        return evalComplexExpression(this.function_expression, {z: z});
+       return Z.function(function_expression, z);
     }
 
     interpolatePoints(array){
@@ -3063,6 +3420,15 @@ class ComplexGraph {
                 if(this.draw_function == true){//Comment: this.draw_function initially false
     
                     input_plane.graphed_points.push(new ComplexIO({is_parameter: false}));//input_plane.graphed_points.push([]);
+
+                    input_plane.lastComplexIO().updateColor(input_plane.color);
+
+                    for(let output_plane of this.output_planes){
+
+                        output_plane.graphed_points.push(new ComplexIO({is_parameter: false}));
+
+                        output_plane.lastComplexIO().updateColor(input_plane.color);
+                    }
                 }
     
                 for(let index in ids){
@@ -3071,7 +3437,7 @@ class ComplexGraph {
     
                     console.log(`drawFunction click id - this.function_expressions[${id}]: ${this.function_expressions[id]}`);
     
-                    this.drawFunction({output_planes: output_planes, id: id, update_start_index: index == ids.length - 1});
+                   // this.drawFunction({output_planes: output_planes, id: id, update_start_index: index == ids.length - 1});
                 }
                 
             })
@@ -3111,6 +3477,10 @@ class ComplexGraph {
 
                 output_plane.graphed_points.push(new ComplexIO({is_parameter: false}));
 
+                let complex_io = output_plane.lastComplexIO();
+                
+                complex_io.updateColor(output_plane.color);
+
                 let output_map = this.getOutputMap(output_plane.graph.id);
 
                 console.log(`output_map ${output_plane.graph.id}: ${getObjectString(output_map)}`);
@@ -3121,6 +3491,10 @@ class ComplexGraph {
                     let z = input_plane_last_point_set[i];//let z = this.input_plane.graphed_points[i];
 
                     let f_of_z = this.f_of_z(z, function_id);
+
+                    console.log(`drawFunction:
+                        f_of_z: ${f_of_z.a}, ${f_of_z.b}
+                    `)
 
                     let input_output_map = {'f_z_prev': f_z_prev, 'z_prev': z_prev, 'f_z': f_of_z, 'z': z};
 
@@ -3136,9 +3510,9 @@ class ComplexGraph {
 
                         b2 = input_output_map[output_map.b2.variable][output_map.b2.property]//* zoom;
 
-                        drawZ(f_of_z, output_plane.graph, {scale: output_plane.zoom, color: 'blue', type: 'vector', a1: a1, b1: b1, a2: a2, b2: b2});
+                        drawZ(f_of_z, output_plane.graph, {scale: output_plane.zoom, color: complex_io.color, type: 'vector', a1: a1, b1: b1, a2: a2, b2: b2});
 
-                        output_plane.lastComplexIO().points.push(new Z(a2, b2)); //output_plane.graphed_points.push(f_of_z);
+                        complex_io.points.push(new Z(a2, b2)); //output_plane.graphed_points.push(f_of_z);
                     }
                     
                     z_prev = z;
@@ -3148,10 +3522,57 @@ class ComplexGraph {
             }
         }
 
+
         /*if(update_start_index) {
             
             this.input_plane.graphed_points_start_index = this.input_plane.graphed_points.length
         }*/
+    }
+
+    drawFunctionPoint(z1, z2, options){
+
+        options = new defaultOptions(options, {zoom: 1, output_planes: this.output_planes, id: 0, update_start_index: true})
+
+        let output_planes = options.output_planes;
+
+        let function_id = options.id;
+
+        let zoom = Number(options.zoom);
+
+        for(let output_plane of output_planes){
+
+           // output_plane.graphed_points.push(new ComplexIO({is_parameter: false}));
+
+            let complex_io = output_plane.lastComplexIO();
+            
+            //complex_io.updateColor(output_plane.color);
+
+            let output_map = this.getOutputMap(output_plane.graph.id);
+
+            let f_of_z1 = this.f_of_z(z1, function_id);
+
+            let f_of_z2 = this.f_of_z(z2, function_id);
+
+            console.log(`drawFunction:
+                f_of_z2: ${f_of_z2.a}, ${f_of_z2.b}
+            `)
+
+            let input_output_map = {'f_z_prev': f_of_z1, 'z_prev': z1, 'f_z': f_of_z2, 'z': z2};
+
+            let a1, a2, b1, b2;
+
+            a1 = input_output_map[output_map.a1.variable][output_map.a1.property] //* zoom;
+
+            b1 = input_output_map[output_map.b1.variable][output_map.b1.property]// * zoom;
+
+            a2 = input_output_map[output_map.a2.variable][output_map.a2.property]// * zoom;
+
+            b2 = input_output_map[output_map.b2.variable][output_map.b2.property]//* zoom;
+
+            drawZ(f_of_z2, output_plane.graph, {scale: output_plane.zoom, color: complex_io.color, vector_width: output_plane.vector_width, type: 'vector', a1: a1, b1: b1, a2: a2, b2: b2});
+
+            complex_io.points.push(new Z(a2, b2)); //output_plane.graphed_points.push(f_of_z);
+        }
     }
 
     getOutputMap(svg_id){
@@ -3208,6 +3629,30 @@ class ComplexGraph {
         return output_map[svg_id];
     }
 
+    getLabelText(q){
+
+        let label;
+
+        if(q == '1'){
+
+            label = `a1 vs b2`;
+        }
+        else if(q == '2'){
+
+            label = `a1 vs a2`;
+        }
+        else if(q == '3'){
+
+            label = `b1 vs b2`;
+        }
+        else if(q == '4'){
+
+            label = `b1 vs a2`;
+        }
+
+        return label;
+    }
+
     addComplexMousePosition(svg){
 
         svg.addEventListener('mouse')
@@ -3247,7 +3692,24 @@ class ComplexGraph {
     
                         let prev_z = input_plane_last_point_set[input_plane_last_point_set.length - 2];//let prev_z = this.input_plane.graphed_points[this.input_plane.graphed_points.length - 2];
                         //added scale: plane.zoom
-                        drawZ(z, svg, {scale: plane.zoom, color: 'black', type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+                        drawZ(z, svg, {scale: plane.zoom, color: this.input_plane.color, vector_width: this.input_plane.vector_width, type: 'vector', a1: z.a, b1: z.b, a2: prev_z.a, b2: prev_z.b});
+
+                        let ids = Object.keys(this.function_expressions);
+
+                        for(let index in ids){
+    
+                            let id = ids[index];
+            
+                            console.log(`drawFunction click id - this.function_expressions[${id}]: ${this.function_expressions[id]}`);
+            
+                            if(this.validFunctionExpression(id)){
+
+                                this.drawFunctionPoint(prev_z, z, {id: id});
+                            }
+                           // this.drawFunction({output_planes: output_planes, id: id, update_start_index: index == ids.length - 1});
+                        }
+
+                       
                     }
                    
                 }
@@ -3255,6 +3717,16 @@ class ComplexGraph {
         })
 
       
+    }
+
+    validFunctionExpression(id){
+
+        let function_expression = this.function_expressions[id];
+
+        if(function_expression.length > 0){
+
+            return true;
+        }
     }
 }
 
@@ -3336,7 +3808,14 @@ function drawZ(z, svg, options){
 
         console.log(`drawZ: z_null: ${z == null}, x1: ${typeof a1}, x2: ${typeof b1}, y1: ${typeof a2}, y2: ${typeof b2}`)
 
-        let line = drawLine(svg, a1, b1, a2, b2, {width: options.vector_width, color: color, style: {}});
+        let line = drawLine({
+            svg: svg, 
+            x1: a1, 
+            y1: b1, 
+            x2: a2, 
+            y2: b2, 
+            width: options.vector_width, 
+            color: color, style: {}});
 
         line.classList.add(options.class)
 
@@ -3375,14 +3854,15 @@ function expo(n, num_decimal_points) {
     return Number(n.substring(n.indexOf('-') + 1)) *-1
   }
 
+
 export default {
 
-    Angle, Z, sqr, sqrt, drawZ, drawComplexPlane, ComplexGraph
+    Angle, Z, sqr, sqrt, drawZ, drawComplexPlane, ComplexGraph, expo, getNumericPartOfScientificNotationString, getExponentPartOfScientificNotationString
 }
 
 export {
 
-    Angle, Z, sqr, sqrt, drawZ, drawComplexPlane, ComplexGraph
+    Angle, Z, sqr, sqrt, drawZ, drawComplexPlane, ComplexGraph, expo, getNumericPartOfScientificNotationString, getExponentPartOfScientificNotationString
 }
 
 /*
@@ -3473,7 +3953,11 @@ w._ww.updateA(1)
 
     HANDLE RESIZE
 
+    SRTROKE WIDTH
 
+    STORKE COLOR
+
+    Quadrants -> Individual Quadrant
 
 */
 
@@ -3518,3 +4002,8 @@ function orderReveunue(){
     
     return revenue;
 }
+
+/*
+
+https://peterefrancis.com/complex-function-plot/plotter.html
+*/

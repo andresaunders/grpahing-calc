@@ -36,3 +36,53 @@
     transform: rotate(360deg);
   }
 }
+
+button[id*='clear-input-button']{
+
+  width: 50%;
+
+}
+
+div[id*='function-option-container'] * {
+
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+div[id*='function-option-container'] > * {
+
+  margin-right: 5%;
+  margin-left: 5%;
+
+}
+
+
+div[id*='param-container'] * {
+
+  margin-top: 5px;
+  margin-bottom: 5px;
+}
+
+
+div[id*='a-expr-container'] *,  div[id*='b-expr-container'] *, div[id*='t-min-max-container']{
+
+  margin-right: 5%;
+  margin-left: 5%;
+}
+
+@media only screen and (max-width: 700px){
+
+  div[id*="color-container"]{
+
+    justify-content: center;
+  }
+
+  label[id*="color-label"]{
+
+    display: none;
+  }
+
+  input[id*="color-input"] {
+
+  }
+}

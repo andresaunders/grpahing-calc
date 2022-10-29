@@ -1,21 +1,26 @@
 import {svg_ns, getSVGViewBox, addSVGListeners} from './Svg.js'
 import {defaultOptions} from './DefaultOptions.js';
+import {addStyle} from './html'
 
-function createXYPlane(x_min = 0, x_max = 200, y_min = 0, y_max = 400, options){
+function createXYPlaneCanvas(x_min, x_max, y_min, y_max, options){
 
-    options = new defaultOptions(options, 
-        {
-            drawAxes: true, 
-            axis_numbers: true,
-            drawGridLines: true, 
-            positive_y_axis_up: true, 
-            line_width: .2,
-            add_svg_listeners: true,
-            append_to_dom: true,
-            height: '100%',//500px
-            width: '100%',
-            marginBottom: '10px'
-        });
+    let canvas_container = document.createElement('div');
+
+    addStyle(canvas_container, {
+        width: options.width,
+        height: options.height,
+        marginBottom: options.margin_bottom
+    })
+
+    let canvas = document.createElement('canvas');
+
+    let context = canvas.getContext('2d');
+
+}
+
+
+
+function createXYPlaneSVG(x_min, x_max, y_min, y_max, options){
 
     let svg_container = document.createElement('div');
 
@@ -98,6 +103,34 @@ function createXYPlane(x_min = 0, x_max = 200, y_min = 0, y_max = 400, options){
     return svg;
 }
 
+function createXYPlane(x_min = 0, x_max = 200, y_min = 0, y_max = 400, options){
+
+    options = new defaultOptions(options, 
+        {
+            drawAxes: true, 
+            axis_numbers: true,
+            drawGridLines: true, 
+            positive_y_axis_up: true, 
+            line_width: .2,
+            add_svg_listeners: true,
+            append_to_dom: true,
+            height: '100%',//500px
+            width: '100%',
+            marginBottom: '10px',
+            canvas: false,
+            svg: true
+        });
+
+    if(options.canvas){
+
+        return createXYPlaneCanvas(x_min, x_max, y_min, y_max, options);
+    }
+    else {
+
+        return createXYPlaneSVG(x_min, x_max, y_min, y_max, options);
+    }
+}
+
 function calculateRangeDelta(range){
 
     let delta;
@@ -149,9 +182,39 @@ function drawVector(){
 
 }
 
-function drawLine(svg, x1,y1, x2, y2, options){
+function drawLineCanvas(options){
 
-    options = new defaultOptions(options, {width: 1, color: 'black', arrow: null, arrow_id: null, style: {'classList': ['graph-grid-line']}})
+    let canvas = options.canvas;
+
+    let context = canvas.getContext('2d');
+
+    let x1 = Number(options.x1);
+
+    let y1 = Number(options.y1);
+
+    let x2 = Number(options.x2);
+
+    let y2 = Number(options.y2);
+
+    if(options.moveTo){
+
+        context.moveTo(options.moveTo.x, options.moveTo.y)
+    }
+    
+    for(let point of options.line){}
+}
+
+function drawLineSVG(options){
+
+    let svg = options.svg;
+
+    let x1 = Number(options.x1);
+
+    let y1 = Number(options.y1);
+
+    let x2 = Number(options.x2);
+
+    let y2 = Number(options.y2);
 
     console.log(`x1: ${typeof x1}, x2: ${typeof x2}, y1: ${typeof y1}, y2: ${typeof y2}`)
 
@@ -230,6 +293,31 @@ function drawLine(svg, x1,y1, x2, y2, options){
     svg.appendChild(line);
 
     return line;
+}
+
+function drawLine(options){
+
+    options = new defaultOptions(options, {
+        svg: null,
+        canvas: null,
+        x1: null,
+        y1: null,
+        x2: null,
+        y2: null,
+        width: 1,
+        color: 'black', 
+        arrow: null, 
+        arrow_id: null, 
+        style: {'classList': ['graph-grid-line']}})
+
+    if(options.svg){
+
+        return drawLineSVG(options);
+    }
+    else if(options.canvas){
+
+        return drawLineCanvas(options);
+    }
 }
 
  
