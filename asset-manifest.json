@@ -1,16 +1,16 @@
 {
   "files": {
     "main.css": "/grpahing-calc/static/css/main.5bc5bf65.css",
-    "main.js": "/grpahing-calc/static/js/main.ff17abf1.js",
+    "main.js": "/grpahing-calc/static/js/main.6a6a7109.js",
     "static/js/787.738f8d4b.chunk.js": "/grpahing-calc/static/js/787.738f8d4b.chunk.js",
     "static/media/logo.svg": "/grpahing-calc/static/media/logo.6ce24c58023cc2f8fd88fe9d219db6c6.svg",
     "index.html": "/grpahing-calc/index.html",
     "main.5bc5bf65.css.map": "/grpahing-calc/static/css/main.5bc5bf65.css.map",
-    "main.ff17abf1.js.map": "/grpahing-calc/static/js/main.ff17abf1.js.map",
+    "main.6a6a7109.js.map": "/grpahing-calc/static/js/main.6a6a7109.js.map",
     "787.738f8d4b.chunk.js.map": "/grpahing-calc/static/js/787.738f8d4b.chunk.js.map"
   },
   "entrypoints": [
     "static/css/main.5bc5bf65.css",
-    "static/js/main.ff17abf1.js"
+    "static/js/main.6a6a7109.js"
   ]
 }
